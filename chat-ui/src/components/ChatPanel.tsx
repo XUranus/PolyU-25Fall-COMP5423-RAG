@@ -1,121 +1,239 @@
 // src/components/ChatPanel.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
-// Define the type for the raw message object received from the API
-interface RawMessage {
-  id: string; // Using UUID string
-  sender: 'user' | 'bot';
-  content: string; // API returns 'content'
-  timestamp?: string;
-  thinkingProcess?: string; // Stored as JSON string in DB/API
-  retrieved_docs?: string; // Stored as JSON string in DB/API
+
+interface MessageHttpResponse {
+  id: string;
+  sender: string,
+  content: string;
+  thinking_process?: string;
+  retrieved_docs? : string;
+  timpstamp: string;
 }
 
-// Define the type for the message after processing (parsing JSON strings)
-interface ProcessedMessage {
+interface Message {
   id: string;
   sender: 'user' | 'bot';
-  text: string; // Use 'text' for consistency in rendering
-  timestamp?: string;
-  thinkingProcess?: string[]; // Parsed array
-  retrieved_docs?: [string, number][]; // Parsed array of tuples
+  content: string;
+  thinkingProcess?: string[]; // Optional for bot messages
+  retrievedDocs?: [string, number][]; // Optional for bot messages
+}
+
+function convertHttpResponseToMessage(httpResponse: MessageHttpResponse): Message {
+  // Basic mapping
+  const convertedMessage: Message = {
+    id: httpResponse.id,
+    sender: httpResponse.sender as 'user' | 'bot', // Type assertion after confirming source
+    content: httpResponse.content,
+    // timestamp is present in the response but not in the target Message interface
+    // Add optional fields only if they exist in the response
+  };
+
+  // Parse thinking_process if it exists
+  if (httpResponse.thinking_process) {
+    try {
+      // Attempt to parse the JSON string into an array of strings
+      const parsedThinkingProcess: unknown = JSON.parse(httpResponse.thinking_process);
+      // Type guard to ensure it's an array of strings
+      if (Array.isArray(parsedThinkingProcess) && parsedThinkingProcess.every(item => typeof item === 'string')) {
+        convertedMessage.thinkingProcess = parsedThinkingProcess as string[];
+      } else {
+        console.warn(`Parsed thinking_process is not an array of strings for message ${httpResponse.id}. Got:`, parsedThinkingProcess);
+        // Optionally, you could set it to an empty array or skip the field if parsing fails strictly
+        // convertedMessage.thinkingProcess = [];
+      }
+    } catch (error) {
+      console.error(`Failed to parse thinking_process JSON for message ${httpResponse.id}:`, error);
+      console.error(`Raw thinking_process string was:`, httpResponse.thinking_process);
+      // Optionally, add an error message to the thinkingProcess field
+      // convertedMessage.thinkingProcess = [`Error parsing thinking process: ${error.message}`];
+    }
+  }
+
+  // Parse retrieved_docs if it exists
+  if (httpResponse.retrieved_docs) {
+    try {
+      // Attempt to parse the JSON string into an array of [string, number] tuples
+      const parsedRetrievedDocs: unknown = JSON.parse(httpResponse.retrieved_docs);
+      // Type guard to ensure it's an array of [string, number] tuples
+      if (Array.isArray(parsedRetrievedDocs) &&
+          parsedRetrievedDocs.every(item => Array.isArray(item) && item.length === 2 && typeof item[0] === 'string' && typeof item[1] === 'number')) {
+        convertedMessage.retrievedDocs = parsedRetrievedDocs as [string, number][];
+      } else {
+        console.warn(`Parsed retrieved_docs is not an array of [string, number] tuples for message ${httpResponse.id}. Got:`, parsedRetrievedDocs);
+        // Optionally, set it to an empty array or skip the field
+        // convertedMessage.retrievedDocs = [];
+      }
+    } catch (error) {
+      console.error(`Failed to parse retrieved_docs JSON for message ${httpResponse.id}:`, error);
+      console.error(`Raw retrieved_docs string was:`, httpResponse.retrieved_docs);
+      // Optionally, add an error indicator
+      // convertedMessage.retrievedDocs = [["Error", -1]]; // Or similar
+    }
+  }
+
+  return convertedMessage;
 }
 
 interface ChatPanelProps {
-  currentChatId: string | null; // Receive the ID of the chat to display
+  currentChatId: string | null; // Receive the active chat ID from App
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId }) => {
-  const [messages, setMessages] = useState<ProcessedMessage[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // To show a loading state while waiting for bot response
+  const messagesEndRef = useRef<null | HTMLDivElement>(null); // For auto-scrolling
 
-  // Fetch messages whenever currentChatId changes
+  // Fetch messages when the currentChatId changes
   useEffect(() => {
-    const fetchMessages = async () => {
-      if (!currentChatId) {
-        // If no chat is selected, clear messages
-        setMessages([]);
-        return;
-      }
+    if (currentChatId !== null) {
+        const fetchMessages = async () => {
+            try {
+                const response = await fetch(`http://127.0.0.1:5001/api/chat/${currentChatId}/messages`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
 
-      try {
-        console.log(`Fetching messages for chat ID: ${currentChatId}`);
-        const response = await fetch(`http://127.0.0.1:5001/api/chat/${currentChatId}/messages`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const rawData: RawMessage[] = await response.json();
+                let all_messages : MessageHttpResponse[] = await response.json()
+                const data: Message[] = all_messages.map(msg => convertHttpResponseToMessage(msg))
+                console.log('raw ', all_messages)
+                console.log('converted ', data)
 
-        // Process the raw data: parse JSON strings and map to ProcessedMessage
-        const processedMessages: ProcessedMessage[] = rawData.map(rawMsg => ({
-          id: rawMsg.id,
-          sender: rawMsg.sender,
-          text: rawMsg.content, // Map 'content' from API to 'text' for display
-          timestamp: rawMsg.timestamp,
-          thinkingProcess: rawMsg.thinkingProcess ? JSON.parse(rawMsg.thinkingProcess) as string[] : undefined,
-          retrieved_docs: rawMsg.retrieved_docs ? JSON.parse(rawMsg.retrieved_docs) as [string, number][] : undefined,
-        }));
+                setMessages(data);
+            } catch (error) {
+                console.error("Failed to fetch messages:", error);
+                // Set a default message or handle error state
+                setMessages([{ id: "FAKEID-MESSAGE-FAILED", sender: 'bot', content: "Error loading chat history. Please try again." }]);
+            }
+        };
+        fetchMessages();
+    } else {
+        setMessages([]); // Clear messages if no chat is selected
+    }
+  }, [currentChatId]);
 
-        setMessages(processedMessages);
-      } catch (err) {
-        console.error(`Failed to fetch messages for chat ${currentChatId}:`, err);
-        setMessages([{ id: 'error', sender: 'bot', text: 'Error loading messages for this chat.' }]);
-      }
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!inputText.trim() || !currentChatId || isLoading) return;
+
+    const userMessage: Message = {
+      id: "FAKEID-TEMP-MESSAGE", // Temporary ID, will be replaced by server ID later if needed
+      sender: 'user',
+      content: inputText,
     };
 
-    fetchMessages();
-  }, [currentChatId]); // Dependency array includes currentChatId
+    // Optimistically add user message to UI
+    setMessages(prev => [...prev, userMessage]);
+    setInputText('');
+    setIsLoading(true);
 
-  if (!currentChatId) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-500">
-        <p>Select an existing chat or create a new one to start messaging.</p>
-      </div>
-    );
-  }
+    try {
+      const response = await fetch(`http://127.0.0.1:5001/api/chat/${currentChatId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: inputText }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const botResponse: {
+        id: string;
+        sender: 'bot';
+        content: string;
+        thinking_process: string[];
+        retrieved_docs: [string, number][];
+      } = await response.json();
+
+      // Add the bot's response to the messages
+      setMessages(prev => [
+        ...prev,
+        {
+          id: botResponse.id,
+          sender: botResponse.sender,
+          content: botResponse.content,
+          thinkingProcess: botResponse.thinking_process,
+          retrievedDocs: botResponse.retrieved_docs,
+        }
+      ]);
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      // Add an error message from the bot
+      setMessages(prev => [...prev, { id: "FAKEID-MESSAGE-FAILED", sender: 'bot', content: "Sorry, an error occurred while processing your message." }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); // Prevents adding a new line in the textarea
+      handleSend();
+    }
+  };
 
   return (
-    <div className="space-y-4">
-      {messages.map((msg) => (
-        <div
-          key={msg.id} // Using the UUID string as the key
-          className={`flex ${
-            msg.sender === 'user' ? 'justify-end' : 'justify-start'
-          }`}
-        >
+    <div className="flex-1 flex flex-col">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((msg) => (
           <div
-            className={`max-w-[80%] p-3 rounded-lg ${
-              msg.sender === 'user'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 text-white'
+            key={msg.id}
+            className={`flex ${
+              msg.sender === 'user' ? 'justify-end' : 'justify-start'
             }`}
           >
-            {msg.sender === 'bot' && msg.thinkingProcess && (
-              <div className="mb-2 p-2 bg-gray-700 rounded text-sm">
-                <strong>View Thinking Process ({msg.thinkingProcess.length} steps)</strong>
-                <div className="mt-1 space-y-1">
-                  {msg.thinkingProcess.map((step, index) => (
-                    <div key={index} className="flex items-start">
-                      <span className="mr-1">↳</span>
-                      <span>{step}</span>
-                    </div>
-                  ))}
+            <div
+              className={`max-w-[80%] p-3 rounded-lg ${
+                msg.sender === 'user'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-white'
+              }`}
+            >
+              {msg.sender === 'bot' && msg.thinkingProcess && (
+                <div className="mb-2 p-2 bg-gray-700 rounded text-sm">
+                  <strong>View Thinking Process ({msg.thinkingProcess.length} steps)</strong>
+                  <div className="mt-1 space-y-1">
+                    {msg.thinkingProcess.map((step, index) => (
+                      <div key={index} className="flex items-start">
+                        <span className="mr-1">↳</span>
+                        <span>{step}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-            <p>{msg.text}</p>
-            {msg.retrieved_docs && (
-              <details className="mt-1 text-xs text-gray-400">
-                <summary>Retrieved Docs</summary>
-                <ul>
-                  {msg.retrieved_docs.map(([id, score], idx) => (
-                    <li key={idx}>{id}: {score.toFixed(2)}</li>
-                  ))}
-                </ul>
-              </details>
-            )}
+              )}
+              <p>{msg.content}</p>
+
+              {msg.sender === 'bot' && msg.retrievedDocs && (
+                  <details className="mt-2 text-xs text-gray-400">
+                      <summary>Retrieved Docs</summary>
+                      <ul className="list-disc list-inside">
+                          {msg.retrievedDocs.map(([docId, score], idx) => (
+                              <li key={idx}>{docId} (Score: {score.toFixed(2)})</li>
+                          ))}
+                      </ul>
+                  </details>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+        {isLoading && (
+            <div className="flex justify-start">
+                <div className="bg-gray-800 text-white p-3 rounded-lg max-w-[80%]">
+                    <p>Thinking...</p>
+                </div>
+            </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
     </div>
   );
 };
