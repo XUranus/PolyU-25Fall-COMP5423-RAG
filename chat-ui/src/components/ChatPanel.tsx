@@ -119,6 +119,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId }) => {
   }, [messages]);
 
   const handleSend = async () => {
+    console.log('handleSend ', inputText)
     if (!inputText.trim() || !currentChatId || isLoading) return;
 
     const userMessage: Message = {
@@ -180,60 +181,90 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId }) => {
     }
   };
 
-  return (
-    <div className="flex-1 flex flex-col">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${
-              msg.sender === 'user' ? 'justify-end' : 'justify-start'
-            }`}
-          >
-            <div
-              className={`max-w-[80%] p-3 rounded-lg ${
-                msg.sender === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-white'
-              }`}
-            >
-              {msg.sender === 'bot' && msg.thinkingProcess && (
-                <div className="mb-2 p-2 bg-gray-700 rounded text-sm">
-                  <strong>View Thinking Process ({msg.thinkingProcess.length} steps)</strong>
-                  <div className="mt-1 space-y-1">
-                    {msg.thinkingProcess.map((step, index) => (
-                      <div key={index} className="flex items-start">
-                        <span className="mr-1">↳</span>
-                        <span>{step}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <p>{msg.content}</p>
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(e.target.value); // Update the inputText state with the current value of the textarea
+  };
 
-              {msg.sender === 'bot' && msg.retrievedDocs && (
-                  <details className="mt-2 text-xs text-gray-400">
-                      <summary>Retrieved Docs</summary>
-                      <ul className="list-disc list-inside">
-                          {msg.retrievedDocs.map(([docId, score], idx) => (
-                              <li key={idx}>{docId} (Score: {score.toFixed(2)})</li>
-                          ))}
-                      </ul>
-                  </details>
-              )}
-            </div>
-          </div>
-        ))}
-        {isLoading && (
-            <div className="flex justify-start">
-                <div className="bg-gray-800 text-white p-3 rounded-lg max-w-[80%]">
-                    <p>Thinking...</p>
+  return (
+    <div className="flex-1 flex flex-col h-full">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.map((msg) => (
+            <div
+                key={msg.id}
+                className={`flex ${
+                msg.sender === 'user' ? 'justify-end' : 'justify-start'
+                }`}
+            >
+                <div
+                className={`max-w-[80%] p-3 rounded-lg ${
+                    msg.sender === 'user'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-white'
+                }`}
+                >
+                {msg.sender === 'bot' && msg.thinkingProcess && (
+                    <div className="mb-2 p-2 bg-gray-700 rounded text-sm">
+                    <strong>View Thinking Process ({msg.thinkingProcess.length} steps)</strong>
+                    <div className="mt-1 space-y-1">
+                        {msg.thinkingProcess.map((step, index) => (
+                        <div key={index} className="flex items-start">
+                            <span className="mr-1">↳</span>
+                            <span>{step}</span>
+                        </div>
+                        ))}
+                    </div>
+                    </div>
+                )}
+                <p>{msg.content}</p>
+
+                {msg.sender === 'bot' && msg.retrievedDocs && (
+                    <details className="mt-2 text-xs text-gray-400">
+                        <summary>Retrieved Docs</summary>
+                        <ul className="list-disc list-inside">
+                            {msg.retrievedDocs.map(([docId, score], idx) => (
+                                <li key={idx}>{docId} (Score: {score.toFixed(2)})</li>
+                            ))}
+                        </ul>
+                    </details>
+                )}
                 </div>
             </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+            ))}
+            {isLoading && (
+                <div className="flex justify-start">
+                    <div className="bg-gray-800 text-white p-3 rounded-lg max-w-[80%]">
+                        <p>Thinking...</p>
+                    </div>
+                </div>
+            )}
+            <div ref={messagesEndRef} />
+        </div>
+
+        {/* Fixed footer with input area */}
+        <footer className="bg-gray-800 p-4 border-t border-gray-700">
+            <div className="flex items-center space-x-2">
+            <textarea
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                value={inputText}
+                placeholder="Message Group4 AI..."
+                className="flex-1 p-2 rounded bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button 
+                onClick={handleSend}
+                disabled={isLoading || !inputText.trim() || !currentChatId}
+                className={`p-2 rounded ${
+                isLoading || !inputText.trim() || !currentChatId
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 9M12 19l-9 9m9-9v-6m6 6a3 3 0 100-6 3 3 0 000 6z" />
+                </svg>
+            </button>
+            </div>
+      </footer>
     </div>
   );
 };

@@ -37,12 +37,11 @@ function App() {
     fetchChatHistory();
   }, [currentChatId]); // Add currentChatId to dependency if fetching history affects active chat logic
 
-  
-  
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
+  // Handler to be passed to Sidebar to create a new chat
   const handleNewChat = async () => {
     try {
         const response = await fetch('http://127.0.0.1:5001/api/chats/new', {
@@ -52,6 +51,7 @@ function App() {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const newChatData: { id: string; title: string } = await response.json();
+        // Add the new chat to the list and set it as active
         setAvailableChats(prev => [{ id: newChatData.id, title: newChatData.title, updated_at: new Date().toISOString() }, ...prev]);
         setCurrentChatId(newChatData.id);
     } catch (error) {
@@ -59,6 +59,7 @@ function App() {
     }
   };
 
+  // Handler to be passed to Sidebar to select a chat
   const handleSelectChat = (chatId: string) => {
     setCurrentChatId(chatId);
   };
@@ -79,10 +80,10 @@ function App() {
         //   setCurrentChatId(null); // Or keep it null if no chats remain
         // }
     }
-  };
+};
 
   return (
-      <div className="flex h-screen bg-gray-900 text-white">
+    <div className="flex h-screen bg-gray-900 text-white">
       {/* Sidebar */}
       <div
         className={`${
@@ -94,12 +95,12 @@ function App() {
           currentChatId={currentChatId}
           onNewChat={handleNewChat}
           onSelectChat={handleSelectChat}
-          onDeleteChat={handleDeleteChat} // Pass the delete handler
+          onDeleteChat={handleDeleteChat}
         />
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-full"> 
         {/* Header */}
         <header className="bg-gray-800 p-4 flex justify-between items-center border-b border-gray-700">
           <button
@@ -110,7 +111,7 @@ function App() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="text-xl font-bold">Group Dicksuck-R42</h1>
+          <h1 className="text-xl font-bold">Group4 AI</h1>
           <div className="hidden md:block">
             <select className="bg-gray-700 text-white px-3 py-1 rounded">
               <option>Multi-hop RAG</option>
@@ -121,24 +122,12 @@ function App() {
         </header>
 
         {/* Chat Panel */}
-        <main className="flex-1 flex flex-col">
+        <main className="flex-1 overflow-hidden">
+          {/* Pass currentChatId to ChatPanel */}
           <ChatPanel currentChatId={currentChatId} />
-        </main>
 
-        <footer className="bg-gray-800 p-4">
-          <div className="flex items-center space-x-2">
-            <input
-              type="text"
-              placeholder="Message Group4 AI..."
-              className="flex-1 p-2 rounded bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button className="p-2 bg-blue-600 rounded hover:bg-blue-700">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 9M12 19l-9 9m9-9v-6m6 6a3 3 0 100-6 3 3 0 000 6z" />
-              </svg>
-            </button>
-          </div>
-        </footer>
+          {/* The input area is now handled inside ChatPanel */}
+        </main>
       </div>
     </div>
   );
