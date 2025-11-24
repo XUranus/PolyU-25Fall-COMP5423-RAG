@@ -1,47 +1,83 @@
 // src/components/ChatPanel.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-interface Message {
-  id: number;
+// Define the type for the raw message object received from the API
+interface RawMessage {
+  id: string; // Using UUID string
   sender: 'user' | 'bot';
-  text: string;
-  thinkingProcess?: string[]; // Optional for bot messages
+  content: string; // API returns 'content'
+  timestamp?: string;
+  thinkingProcess?: string; // Stored as JSON string in DB/API
+  retrieved_docs?: string; // Stored as JSON string in DB/API
 }
 
-const ChatPanel: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      sender: 'bot',
-      text: "Hello! I'm Group42 AI. Which retrieval model should I use?",
-    },
-    {
-      id: 2,
-      sender: 'user',
-      text: "The second place finisher of the 2011 Gran Premio Santander d'Italia drove for who when he won the 2009 FIA Formula One World Championship?",
-    },
-    {
-      id: 3,
-      sender: 'bot',
-      text: "The second place finisher of the 2011 Gran Premio Santander d'Italia was Jenson Button.",
-      thinkingProcess: [
-        "Starting multi-hop query processing...",
-        "Analyzed intent: Decomposed into 2 sub-questions:",
-        "  • Who was the second place finisher of the 2011 Gran Premio Santander d'Italia?",
-        "  • Which team did this person drive for when they won the 2009 FIA Formula One World Championship?",
-        "Step 1: Searching for \"Who was the second place finisher of the 2011 Gran Premio Santander d'Italia?\"",
-        "Found: Jenson Button",
-        "Step 2: Searching for \"Who was the second place finisher of the 2011 Gran Premio Santander d'Italia?\"",
-        "Found: Jenson Button",
-      ],
-    },
-  ]);
+// Define the type for the message after processing (parsing JSON strings)
+interface ProcessedMessage {
+  id: string;
+  sender: 'user' | 'bot';
+  text: string; // Use 'text' for consistency in rendering
+  timestamp?: string;
+  thinkingProcess?: string[]; // Parsed array
+  retrieved_docs?: [string, number][]; // Parsed array of tuples
+}
+
+interface ChatPanelProps {
+  currentChatId: string | null; // Receive the ID of the chat to display
+}
+
+const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId }) => {
+  const [messages, setMessages] = useState<ProcessedMessage[]>([]);
+
+  // Fetch messages whenever currentChatId changes
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (!currentChatId) {
+        // If no chat is selected, clear messages
+        setMessages([]);
+        return;
+      }
+
+      try {
+        console.log(`Fetching messages for chat ID: ${currentChatId}`);
+        const response = await fetch(`http://127.0.0.1:5001/api/chat/${currentChatId}/messages`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const rawData: RawMessage[] = await response.json();
+
+        // Process the raw data: parse JSON strings and map to ProcessedMessage
+        const processedMessages: ProcessedMessage[] = rawData.map(rawMsg => ({
+          id: rawMsg.id,
+          sender: rawMsg.sender,
+          text: rawMsg.content, // Map 'content' from API to 'text' for display
+          timestamp: rawMsg.timestamp,
+          thinkingProcess: rawMsg.thinkingProcess ? JSON.parse(rawMsg.thinkingProcess) as string[] : undefined,
+          retrieved_docs: rawMsg.retrieved_docs ? JSON.parse(rawMsg.retrieved_docs) as [string, number][] : undefined,
+        }));
+
+        setMessages(processedMessages);
+      } catch (err) {
+        console.error(`Failed to fetch messages for chat ${currentChatId}:`, err);
+        setMessages([{ id: 'error', sender: 'bot', text: 'Error loading messages for this chat.' }]);
+      }
+    };
+
+    fetchMessages();
+  }, [currentChatId]); // Dependency array includes currentChatId
+
+  if (!currentChatId) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500">
+        <p>Select an existing chat or create a new one to start messaging.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       {messages.map((msg) => (
         <div
-          key={msg.id}
+          key={msg.id} // Using the UUID string as the key
           className={`flex ${
             msg.sender === 'user' ? 'justify-end' : 'justify-start'
           }`}
@@ -67,6 +103,16 @@ const ChatPanel: React.FC = () => {
               </div>
             )}
             <p>{msg.text}</p>
+            {msg.retrieved_docs && (
+              <details className="mt-1 text-xs text-gray-400">
+                <summary>Retrieved Docs</summary>
+                <ul>
+                  {msg.retrieved_docs.map(([id, score], idx) => (
+                    <li key={idx}>{id}: {score.toFixed(2)}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
         </div>
       ))}

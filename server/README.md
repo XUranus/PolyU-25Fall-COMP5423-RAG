@@ -1,1 +1,1 @@
-pip install flask-cors
+conda install flask-cors flask
