@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# retrieval/hybrid_retriever.py
+# hybrid_retriever.py
 """
 This class wraps your existing BM25 and BGE logic into a clean, reusable interface.
 """
@@ -14,7 +14,7 @@ import logging
 import json
 import os
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('RAG42')
 
 class HybridRetriever:
     """
@@ -52,6 +52,7 @@ class HybridRetriever:
         self._build_sparse_index()
         self._build_dense_index()
 
+
     def _load_collection(self, path: str):
         """Loads the document collection from HuggingFace or a file."""
         from datasets import load_dataset
@@ -62,6 +63,7 @@ class HybridRetriever:
         self.doc_ids = [ex["id"] for ex in collection_dataset]
         self.id_to_text = {ex["id"]: ex["text"] for ex in collection_dataset}
         logger.info(f"Loaded {len(self.doc_texts)} documents.")
+
 
     def _build_sparse_index(self):
         """Builds the BM25 index."""
@@ -85,6 +87,7 @@ class HybridRetriever:
              logger.info(f"Saving BM25 index to {cache_path}...")
              self.bm25_retriever.save(cache_path)
         logger.info("BM25 index built.")
+
 
     def _build_dense_index(self):
         """Builds the BGE (dense) index using FAISS."""
@@ -115,6 +118,7 @@ class HybridRetriever:
             faiss.write_index(self.dense_index, cache_path)
         
         logger.info("FAISS dense index built.")
+
 
     def retrieve(self, query: str, k: int = 10, alpha: float = 0.5) -> List[Tuple[str, str, float]]:
         """
@@ -157,6 +161,7 @@ class HybridRetriever:
         logger.debug(f"Retrieved {len(results)} documents for query: {query[:30]}...")
         return results
 
+
     def _retrieve_sparse(self, query: str, k: int) -> List[Tuple[int, float]]:
         """Internal method for sparse retrieval."""
         # Tokenize query - REMOVED 'stem=True'
@@ -164,12 +169,14 @@ class HybridRetriever:
         scores, indices = self.bm25_retriever.retrieve(query_tokens, k=k)
         return [(int(indices[0][i]), float(scores[0][i])) for i in range(len(indices[0]))]
 
+
     def _retrieve_dense(self, query: str, k: int) -> List[Tuple[int, float]]:
         """Internal method for dense retrieval."""
         query_emb = self.dense_model.encode([query])
         faiss.normalize_L2(query_emb)
         scores, indices = self.dense_index.search(query_emb, k=k)
         return [(int(indices[0][i]), float(scores[0][i])) for i in range(len(indices[0]))]
+
 
     def _normalize_scores(self, scores: List[float]) -> List[float]:
         """Normalizes a list of scores to [0, 1] using Min-Max scaling."""

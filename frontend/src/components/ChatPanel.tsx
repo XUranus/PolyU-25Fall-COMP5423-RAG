@@ -7,16 +7,26 @@ interface MessageHttpResponse {
   sender: string,
   content: string;
   thinking_process?: string;
-  retrieved_docs? : string;
   timpstamp: string;
+}
+
+interface RetrievedDoc {
+  docId: string;
+  text: string;
+  score: number;
+}
+
+interface ThinkingProcessStep {
+  step: number,
+  description: string,
+  retrieved_docs? : RetrievedDoc[]
 }
 
 interface Message {
   id: string;
   sender: 'user' | 'bot';
   content: string;
-  thinkingProcess?: string[]; // Optional for bot messages
-  retrievedDocs?: [string, string, number][]; // [DocID, text, score] Optional for bot messages
+  thinkingProcess?: ThinkingProcessStep[]; // Optional for bot messages
 }
 
 function convertHttpResponseToMessage(httpResponse: MessageHttpResponse): Message {
@@ -35,8 +45,8 @@ function convertHttpResponseToMessage(httpResponse: MessageHttpResponse): Messag
       // Attempt to parse the JSON string into an array of strings
       const parsedThinkingProcess: unknown = JSON.parse(httpResponse.thinking_process);
       // Type guard to ensure it's an array of strings
-      if (Array.isArray(parsedThinkingProcess) && parsedThinkingProcess.every(item => typeof item === 'string')) {
-        convertedMessage.thinkingProcess = parsedThinkingProcess as string[];
+      if (Array.isArray(parsedThinkingProcess)) {
+        convertedMessage.thinkingProcess = parsedThinkingProcess as ThinkingProcessStep[];
       } else {
         console.warn(`Parsed thinking_process is not an array of strings for message ${httpResponse.id}. Got:`, parsedThinkingProcess);
         // Optionally, you could set it to an empty array or skip the field if parsing fails strictly
@@ -51,31 +61,31 @@ function convertHttpResponseToMessage(httpResponse: MessageHttpResponse): Messag
   }
 
   // Parse retrieved_docs if it exists
-  if (httpResponse.retrieved_docs) {
-    try {
-      // Attempt to parse the JSON string into an array of [string, number] tuples
-      const parsedRetrievedDocs: unknown = JSON.parse(httpResponse.retrieved_docs);
-      // Type guard to ensure it's an array of [string, number] tuples
-      if (Array.isArray(parsedRetrievedDocs) &&
-          parsedRetrievedDocs.every(
-            item => Array.isArray(item) 
-              && item.length === 3 
-              && typeof item[0] === 'string' 
-              && typeof item[1] === 'string'
-              && typeof item[2] === 'number')) {
-        convertedMessage.retrievedDocs = parsedRetrievedDocs as [string, string, number][];
-      } else {
-        console.warn(`Parsed retrieved_docs is not an array of [string, number] tuples for message ${httpResponse.id}. Got:`, parsedRetrievedDocs);
-        // Optionally, set it to an empty array or skip the field
-        // convertedMessage.retrievedDocs = [];
-      }
-    } catch (error) {
-      console.error(`Failed to parse retrieved_docs JSON for message ${httpResponse.id}:`, error);
-      console.error(`Raw retrieved_docs string was:`, httpResponse.retrieved_docs);
-      // Optionally, add an error indicator
-      // convertedMessage.retrievedDocs = [["Error", -1]]; // Or similar
-    }
-  }
+  // if (httpResponse.retrieved_docs) {
+  //   try {
+  //     // Attempt to parse the JSON string into an array of [string, number] tuples
+  //     const parsedRetrievedDocs: unknown = JSON.parse(httpResponse.retrieved_docs);
+  //     // Type guard to ensure it's an array of [string, number] tuples
+  //     if (Array.isArray(parsedRetrievedDocs) &&
+  //         parsedRetrievedDocs.every(
+  //           item => Array.isArray(item) 
+  //             && item.length === 3 
+  //             && typeof item[0] === 'string' 
+  //             && typeof item[1] === 'string'
+  //             && typeof item[2] === 'number')) {
+  //       convertedMessage.retrievedDocs = parsedRetrievedDocs as [string, string, number][];
+  //     } else {
+  //       console.warn(`Parsed retrieved_docs is not an array of [string, number] tuples for message ${httpResponse.id}. Got:`, parsedRetrievedDocs);
+  //       // Optionally, set it to an empty array or skip the field
+  //       // convertedMessage.retrievedDocs = [];
+  //     }
+  //   } catch (error) {
+  //     console.error(`Failed to parse retrieved_docs JSON for message ${httpResponse.id}:`, error);
+  //     console.error(`Raw retrieved_docs string was:`, httpResponse.retrieved_docs);
+  //     // Optionally, add an error indicator
+  //     // convertedMessage.retrievedDocs = [["Error", -1]]; // Or similar
+  //   }
+  // }
 
   return convertedMessage;
 }
@@ -155,8 +165,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId }) => {
         id: string;
         sender: 'bot';
         content: string;
-        thinking_process: string[];
-        retrieved_docs: [string, string, number][];
+        thinking_process: ThinkingProcessStep[];
       } = await response.json();
 
       // Add the bot's response to the messages
@@ -166,8 +175,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId }) => {
           id: botResponse.id,
           sender: botResponse.sender,
           content: botResponse.content,
-          thinkingProcess: botResponse.thinking_process,
-          retrievedDocs: botResponse.retrieved_docs,
+          thinkingProcess: botResponse.thinking_process
         }
       ]);
     } catch (error) {
@@ -211,10 +219,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId }) => {
                     <div className="mb-2 p-2 bg-gray-700 rounded text-sm">
                     <strong>View Thinking Process ({msg.thinkingProcess.length} steps)</strong>
                     <div className="mt-1 space-y-1">
-                        {msg.thinkingProcess.map((step, index) => (
-                        <div key={index} className="flex items-start">
+                        {msg.thinkingProcess.map(thinkingStep => (
+                        <div key={thinkingStep.step} className="flex items-start">
                             <span className="mr-1">↳</span>
-                            <span>{step}</span>
+                            <span>{thinkingStep.description}</span>
                         </div>
                         ))}
                     </div>
@@ -222,16 +230,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId }) => {
                 )}
                 <p>{msg.content}</p>
 
-                {msg.sender === 'bot' && msg.retrievedDocs && (
-                    <details className="mt-2 text-xs text-gray-400">
-                        <summary>Retrieved Docs</summary>
-                        <ul className="list-disc list-inside">
-                            {msg.retrievedDocs.map(([docId, docText, score], idx) => (
-                                <li key={idx}>{docId} (Score: {score.toFixed(2)})</li>
-                            ))}
-                        </ul>
-                    </details>
-                )}
+
                 </div>
             </div>
             ))}

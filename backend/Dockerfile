@@ -25,9 +25,6 @@ SHELL ["conda", "run", "-n", "COMP5423-RAG42", "/bin/bash", "-c"]
 # Install Python packages
 RUN pip install -r requirements.txt
 
-# Copy application code
-COPY . .
-
 # Expose port
 EXPOSE 5000
 

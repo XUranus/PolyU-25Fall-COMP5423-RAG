@@ -27,7 +27,7 @@ def setup_logger(name, log_file, level=logging.INFO):
     # File handler
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.DEBUG)
-    file_format = logging.Formatter('[%(asctime)s] [%(levelname)s] [%(message)s]')
+    file_format = logging.Formatter('[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]')
     file_handler.setFormatter(file_format)
 
     # logger.addHandler(console_handler)
@@ -42,7 +42,8 @@ os.makedirs(STORAGE_DIR, exist_ok = True)
 DATABASE_PATH = os.path.join(STORAGE_DIR, 'chat_history.db')
 
 # Logger
-logger = setup_logger('RAG42', 'server.log', level=logging.INFO)
+APPNAME = "RAG42"
+logger = setup_logger(APPNAME, 'server.log', level=logging.INFO)
 logger.info("== RAG42 Server Starting ==")
 logger.info(f"Using storage directory: {STORAGE_DIR}")
 
@@ -184,7 +185,7 @@ def get_messages(chat_id : str):
     try:
         conn = get_db_connection()
         messages = conn.execute('''
-            SELECT id, sender, content, timestamp, thinking_process, retrieved_docs
+            SELECT id, sender, content, timestamp, thinking_process
             FROM messages
             WHERE session_id = ?
             ORDER BY timestamp ASC
@@ -230,28 +231,25 @@ def send_message(chat_id : str):
         # 2. RAG logic here
         # --- Run RAG Pipeline ---
         # Note: For now, session_history is passed as None.
-         # You can retrieve it from the DB later if implementing multi-turn.
-        
+        # You can retrieve it from the DB later if implementing multi-turn.
         now = time.time()
         logger.info(f"processing message for [{user_message_id}]:[{user_message[:50]}...]")
         rag_result = rag_pipeline.run(query=user_message, session_history=None)
         bot_response = rag_result["answer"]
-        retrieved_docs = rag_result["retrieved_docs"] # [(id, text, score), ...]
         thinking_process = rag_result["thinking_process"] # [str]
         logger.info(f"Query {user_message_id} took {(time.time() - now):.2f} seconds.")
 
         rag_response = {
             "answer": bot_response,
-            "thinking_process": thinking_process,
-            "retrieved_docs": retrieved_docs
+            "thinking_process": thinking_process
         }
 
         # 3. Store the bot's response message with a UUID
         bot_message_id = str(uuid.uuid4())
         cur.execute('''
-            INSERT INTO messages (id, session_id, sender, content, thinking_process, retrieved_docs)
-            VALUES (?, ?, 'bot', ?, ?, ?)
-        ''', (bot_message_id, chat_id, rag_response['answer'], json.dumps(rag_response['thinking_process']), json.dumps(rag_response['retrieved_docs'])))
+            INSERT INTO messages (id, session_id, sender, content, thinking_process)
+            VALUES (?, ?, 'bot', ?, ?)
+        ''', (bot_message_id, chat_id, rag_response['answer'], json.dumps(rag_response['thinking_process'])))
 
         # Optional: Update the chat title based on the first user message or a summary
         existing_messages = conn.execute('''
@@ -269,8 +267,7 @@ def send_message(chat_id : str):
             'id': bot_message_id, # Return the ID of the bot's message just inserted
             'sender': 'bot',
             'content': rag_response['answer'],
-            'thinking_process': rag_response['thinking_process'],
-            'retrieved_docs': rag_response['retrieved_docs']
+            'thinking_process': rag_response['thinking_process']
         }), 200
 
     except Exception as e:

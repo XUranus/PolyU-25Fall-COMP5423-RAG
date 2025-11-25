@@ -1,1 +1,6 @@
-chat-ui/node_modules
+frontend/node_modules
+frontend/build
+backend/cache
+backend/__pycache__
+backend/storage
+backend/*.log
