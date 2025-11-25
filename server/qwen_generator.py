@@ -82,7 +82,10 @@ class QwenGenerator:
         # this could parse out reasoning steps from the response.
         return {
             "answer": response,
-            "reasoning": ""
+            "reasoning": [
+                "Reasoning step 1 (placeholder).", # TODO: Implement actual reasoning extraction
+                "Reasoning step 2 (placeholder)."
+            ]
         } # Placeholder for reasoning
 
 

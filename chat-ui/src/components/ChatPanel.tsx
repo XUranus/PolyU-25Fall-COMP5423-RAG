@@ -16,7 +16,7 @@ interface Message {
   sender: 'user' | 'bot';
   content: string;
   thinkingProcess?: string[]; // Optional for bot messages
-  retrievedDocs?: [string, number][]; // Optional for bot messages
+  retrievedDocs?: [string, string, number][]; // [DocID, text, score] Optional for bot messages
 }
 
 function convertHttpResponseToMessage(httpResponse: MessageHttpResponse): Message {
@@ -57,8 +57,13 @@ function convertHttpResponseToMessage(httpResponse: MessageHttpResponse): Messag
       const parsedRetrievedDocs: unknown = JSON.parse(httpResponse.retrieved_docs);
       // Type guard to ensure it's an array of [string, number] tuples
       if (Array.isArray(parsedRetrievedDocs) &&
-          parsedRetrievedDocs.every(item => Array.isArray(item) && item.length === 2 && typeof item[0] === 'string' && typeof item[1] === 'number')) {
-        convertedMessage.retrievedDocs = parsedRetrievedDocs as [string, number][];
+          parsedRetrievedDocs.every(
+            item => Array.isArray(item) 
+              && item.length === 3 
+              && typeof item[0] === 'string' 
+              && typeof item[1] === 'string'
+              && typeof item[2] === 'number')) {
+        convertedMessage.retrievedDocs = parsedRetrievedDocs as [string, string, number][];
       } else {
         console.warn(`Parsed retrieved_docs is not an array of [string, number] tuples for message ${httpResponse.id}. Got:`, parsedRetrievedDocs);
         // Optionally, set it to an empty array or skip the field
@@ -151,7 +156,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId }) => {
         sender: 'bot';
         content: string;
         thinking_process: string[];
-        retrieved_docs: [string, number][];
+        retrieved_docs: [string, string, number][];
       } = await response.json();
 
       // Add the bot's response to the messages
@@ -221,7 +226,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId }) => {
                     <details className="mt-2 text-xs text-gray-400">
                         <summary>Retrieved Docs</summary>
                         <ul className="list-disc list-inside">
-                            {msg.retrievedDocs.map(([docId, score], idx) => (
+                            {msg.retrievedDocs.map(([docId, docText, score], idx) => (
                                 <li key={idx}>{docId} (Score: {score.toFixed(2)})</li>
                             ))}
                         </ul>

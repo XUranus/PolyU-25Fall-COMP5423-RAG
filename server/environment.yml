@@ -1,0 +1,15 @@
+name: COMP5423-RAG42
+channels:
+  - defaults
+dependencies:
+  - python=3.12
+  - nltk
+  - spacy
+  - gensim
+  - pandas
+  - pytorch==2.3.0
+  - datasets
+  - python-dotenv
+  - pip
+  - pip:
+    - -r requirements.txt

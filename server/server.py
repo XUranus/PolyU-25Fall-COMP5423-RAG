@@ -7,44 +7,95 @@ import json
 import time
 import uuid
 from datetime import datetime
-from logging import DEBUG, INFO, WARNING, ERROR, basicConfig, getLogger
+import logging
+import os
 
-# selfdefined modules
-from rag import RAGSystem
+def setup_logger(name, log_file, level=logging.INFO):
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
 
-logger = getLogger(__name__)
-logger.setLevel(INFO)
+    # Avoid adding handlers multiple times
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    # Console handler
+    # console_handler = logging.StreamHandler(sys.stdout)
+    # console_handler.setLevel(level)
+    # console_format = logging.Formatter('%(levelname)s - %(message)s')
+    # console_handler.setFormatter(console_format)
+
+    # File handler
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.DEBUG)
+    file_format = logging.Formatter('[%(asctime)s] [%(levelname)s] [%(message)s]')
+    file_handler.setFormatter(file_format)
+
+    # logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
+    return logger
 
 
-logger.info("Initializing RAG system...")
-rag = RAGSystem()
-rag.bootstrap()
+# Configuration
+STORAGE_DIR = os.getenv('RAG42_STORAGE_DIR', './storage')
+os.makedirs(STORAGE_DIR, exist_ok = True)
+DATABASE_PATH = os.path.join(STORAGE_DIR, 'chat_history.db')
+
+# Logger
+logger = setup_logger('RAG42', 'server.log', level=logging.INFO)
+logger.info("== RAG42 Server Starting ==")
+logger.info(f"Using storage directory: {STORAGE_DIR}")
+
+# RAG modules
+logger.info("import RAG modules...")
+now = time.time()
+from rag_pipeline import RAGPipeline
+from hybrid_retriever import HybridRetriever
+from qwen_generator import QwenGenerator
+logger.info(f"RAG modules loaded. ({(time.time() - now):.2f} seconds)")
+
+logger.info("Initialize RAG modules...")
+now = time.time()
+retriever = HybridRetriever(collection_path="izhx/COMP5423-25Fall-HQ-small")
+generator = QwenGenerator(model_name="Qwen/Qwen2.5-0.5B-Instruct")
+rag_pipeline = RAGPipeline(retriever=retriever, generator=generator)
+logger.info(f"RAG modules initialized. ({(time.time() - now):.2f} seconds)")
 
 
+logger.info("Starting Flask app...")
 app = Flask(__name__)
 CORS(app)
 
-DATABASE = 'chat_history.db'
+
 
 # --- Helper Functions ---
 
 def get_db_connection():
     """Establishes a connection to the SQLite database."""
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row # This allows us to fetch rows as dictionaries
     return conn
+
 
 def init_db():
     """Initializes the database with the required tables."""
     with app.app_context():
         db = get_db_connection()
-        with app.open_resource('DDL.sql', mode='r') as f:
+        with app.open_resource('db_init.sql', mode='r') as f:
             db.cursor().executescript(f.read())
         db.commit()
         db.close()
 
 
 # --- API Endpoints ---
+
+@app.route('/api/health')
+def api_health():
+    return jsonify({
+        "status": "ok",
+        "service": "flask-backend",
+        "storage_dir": RAG42_STORAGE_DIR
+    })
 
 
 @app.route('/api/chats/list', methods=['GET'])
@@ -66,7 +117,7 @@ def get_chat_history():
         chat_list = [dict(chat) for chat in chats]
         return jsonify(chat_list), 200
     except Exception as e:
-        print(f"Error fetching chat history: {e}")
+        logger.error(f"Error fetching chat history: {e}")
         return jsonify({'error': 'Failed to retrieve chat history'}), 500
 
 
@@ -91,7 +142,7 @@ def create_new_chat():
         # Return the ID of the new chat
         return jsonify({'id': new_chat_id, 'title': 'New Chat'}), 201
     except Exception as e:
-        print(f"Error creating new chat: {e}")
+        logger.error(f"Error creating new chat: {e}")
         return jsonify({'error': 'Failed to create new chat'}), 500
 
 
@@ -120,7 +171,7 @@ def delete_chat(chat_id : str):
         return jsonify({'message': 'Chat deleted successfully'}), 200
 
     except Exception as e:
-        print(f"Error deleting chat {chat_id}: {e}")
+        logger.error(f"Error deleting chat {chat_id}: {e}")
         conn.rollback() # Rollback in case of error
         return jsonify({'error': 'Failed to delete chat'}), 500
 
@@ -143,7 +194,7 @@ def get_messages(chat_id : str):
         message_list = [dict(msg) for msg in messages]
         return jsonify(message_list), 200
     except Exception as e:
-        print(f"Error fetching messages for chat {chat_id}: {e}")
+        logger.error(f"Error fetching messages for chat {chat_id}: {e}")
         return jsonify({'error': 'Failed to retrieve messages for this chat'}), 500
 
 
@@ -176,11 +227,23 @@ def send_message(chat_id : str):
             VALUES (?, ?, 'user', ?)
         ''', (user_message_id, chat_id, user_message)) # Use generated UUID and provided chat_id
 
-        # 2. Call your RAG logic here (pseudo-code placeholder)
+        # 2. RAG logic here
+        # --- Run RAG Pipeline ---
+        # Note: For now, session_history is passed as None.
+         # You can retrieve it from the DB later if implementing multi-turn.
+        
+        now = time.time()
+        logger.info(f"processing message for [{user_message_id}]:[{user_message[:50]}...]")
+        rag_result = rag_pipeline.run(query=user_message, session_history=None)
+        bot_response = rag_result["answer"]
+        retrieved_docs = rag_result["retrieved_docs"] # [(id, text, score), ...]
+        thinking_process = rag_result["thinking_process"] # [str]
+        logger.info(f"Query {user_message_id} took {(time.time() - now):.2f} seconds.")
+
         rag_response = {
-            "answer": f"Echoing: {user_message}", # Placeholder
-            "thinking_process": ["Simulated thinking step 1.", "Simulated thinking step 2."], # Placeholder
-            "retrieved_docs": [["doc_123", 0.85], ["doc_456", 0.79]] # Placeholder
+            "answer": bot_response,
+            "thinking_process": thinking_process,
+            "retrieved_docs": retrieved_docs
         }
 
         # 3. Store the bot's response message with a UUID
@@ -211,7 +274,7 @@ def send_message(chat_id : str):
         }), 200
 
     except Exception as e:
-        print(f"Error processing message for chat {chat_id}: {e}")
+        logger.error(f"Error processing message for chat {chat_id}: {e}")
         # Consider rolling back the transaction if both messages should be atomic
         if 'conn' in locals():
             conn.rollback()
@@ -223,4 +286,4 @@ if __name__ == '__main__':
     # Initialize the database when the script is run directly
     init_db()
     # Run the Flask app
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5001, use_reloader=False)
