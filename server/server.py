@@ -1,12 +1,25 @@
-# backend.py (Updated for UUIDs)
+#!/usr/bin/env python3
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
 import json
 import time
-import uuid # Import the uuid module
+import uuid
 from datetime import datetime
+from logging import DEBUG, INFO, WARNING, ERROR, basicConfig, getLogger
+
+# selfdefined modules
+from rag import RAGSystem
+
+logger = getLogger(__name__)
+logger.setLevel(INFO)
+
+
+logger.info("Initializing RAG system...")
+rag = RAGSystem()
+rag.bootstrap()
+
 
 app = Flask(__name__)
 CORS(app)
@@ -83,7 +96,7 @@ def create_new_chat():
 
 
 @app.route('/api/chat/<string:chat_id>', methods=['DELETE'])
-def delete_chat(chat_id):
+def delete_chat(chat_id : str):
     """
     Deletes a specific chat session and its messages.
     """
@@ -113,7 +126,7 @@ def delete_chat(chat_id):
 
 
 @app.route('/api/chat/<string:chat_id>/messages', methods=['GET'])
-def get_messages(chat_id):
+def get_messages(chat_id : str):
     """
     Retrieves all messages for a specific chat session identified by UUID.
     """
@@ -135,7 +148,7 @@ def get_messages(chat_id):
 
 
 @app.route('/api/chat/<string:chat_id>/messages', methods=['POST'])
-def send_message(chat_id):
+def send_message(chat_id : str):
     """
     Handles a new user message for a specific chat UUID, calls the RAG system,
     stores both messages, and returns the bot's response.

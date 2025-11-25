@@ -102,7 +102,7 @@ function App() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-full"> 
         {/* Header */}
-        <header className="bg-gray-800 p-4 flex justify-between items-center border-b border-gray-700">
+        <header className="bg-gray-800 p-5 flex justify-between items-center border-b border-gray-700">
           <button
             onClick={toggleSidebar}
             className="md:hidden p-2 rounded hover:bg-gray-700"
@@ -111,7 +111,7 @@ function App() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="text-xl font-bold">Group4 AI</h1>
+          <h1 className="text-xl font-bold">Group42 AI</h1>
           <div className="hidden md:block">
             <select className="bg-gray-700 text-white px-3 py-1 rounded">
               <option>Multi-hop RAG</option>

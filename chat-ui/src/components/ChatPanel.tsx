@@ -247,7 +247,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId }) => {
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 value={inputText}
-                placeholder="Message Group4 AI..."
+                placeholder="Message Group42 AI..."
                 className="flex-1 p-2 rounded bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button 
