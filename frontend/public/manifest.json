@@ -1,6 +1,6 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "RAG42",
+  "name": "PolyU COMP5423 Group42 RAG",
   "icons": [
     {
       "src": "favicon.ico",

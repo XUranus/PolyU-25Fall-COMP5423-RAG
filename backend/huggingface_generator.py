@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# qwen_generator.py
+# huggingface_generator.py
 """
-This class wraps the Qwen generation logic, making it easy to switch models or add features like reasoning.
+This class wraps the local Qwen generation logic, making it easy to switch models or add features like reasoning.
 """
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -12,9 +12,9 @@ from typing import List, Dict
 logger = logging.getLogger('RAG42')
 
 
-class QwenGenerator:
+class HuggingfaceGenerator:
     """
-    Generator module using Qwen2.5 Instruct models.
+    Generator module using models like Qwen2.5 Instruct models from Huggingface.
     Handles prompt formatting and answer generation.
     Can be extended for Feature B (Agentic Workflow).
     """
@@ -38,7 +38,7 @@ class QwenGenerator:
         logger.info("Qwen model loaded successfully.")
 
 
-    def generate_from_docs(self, query: str, retrieved_docs: List[str], max_doc_chars: int = 2000) -> Dict[str, str]:
+    def generate_from_docs(self, query: str, retrieved_docs: List[str], max_doc_chars: int = 2000) -> str:
         """
         Generates an answer based on the query and retrieved documents.
 
@@ -48,22 +48,14 @@ class QwenGenerator:
             max_doc_chars (int): Max characters per doc snippet in prompt.
 
         Returns:
-            Dict[str, str]: Dictionary containing 'answer' and potentially 'reasoning'.
+            str : the answer
         """
         prompt = self._build_prompt(query, retrieved_docs, max_doc_chars)
-        logger.debug(f"Generated prompt: {prompt[:200]}...")
+        logger.debug(f"Generated prompt\n: {prompt}")
         response = self.generate(prompt)
 
         logger.info("Generation completed.")
-        # For now, return just the answer. If Feature B is implemented,
-        # this could parse out reasoning steps from the response.
-        return {
-            "answer": response,
-            "reasoning": [
-                "Reasoning step 1 (placeholder).", # TODO: Implement actual reasoning extraction
-                "Reasoning step 2 (placeholder)."
-            ]
-        } # Placeholder for reasoning
+        return response
     
 
     def generate(self, prompt: str) -> str:
@@ -86,7 +78,7 @@ class QwenGenerator:
 
         generated_ids = self.model.generate(
             **model_inputs,
-            max_new_tokens=100, # Adjust as needed
+            max_new_tokens=1024, # Adjust as needed
             do_sample=False, # Deterministic for consistency
             pad_token_id=self.tokenizer.eos_token_id
         )

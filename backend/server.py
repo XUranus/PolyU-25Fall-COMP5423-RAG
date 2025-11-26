@@ -37,29 +37,38 @@ def setup_logger(name, log_file, level=logging.INFO):
 
 
 # Configuration
-STORAGE_DIR = os.getenv('RAG42_STORAGE_DIR', './storage')
-os.makedirs(STORAGE_DIR, exist_ok = True)
-DATABASE_PATH = os.path.join(STORAGE_DIR, 'chat_history.db')
+DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
+RAG42_STORAGE_DIR = os.getenv('RAG42_STORAGE_DIR', './storage')
+RAG42_CACHE_DIR=os.getenv('RAG42_CACHE_DIR', './cache')
+RAG42_BACKEND_PORT = os.getenv('RAG42_BACKEND_PORT', '5000')
+RAG42_BACKEND_HOST = os.getenv('RAG42_BACKEND_HOST', '0.0.0.0')
+os.makedirs(RAG42_STORAGE_DIR, exist_ok = True)
+os.makedirs(RAG42_CACHE_DIR, exist_ok = True)
+DATABASE_PATH = os.path.join(RAG42_STORAGE_DIR, 'chat_history.db')
+LOGGER_PATH = os.path.join(RAG42_STORAGE_DIR, 'rag.log')
 
 # Logger
 APPNAME = "RAG42"
-logger = setup_logger(APPNAME, 'server.log', level=logging.INFO)
+logger = setup_logger(APPNAME, LOGGER_PATH, level=logging.INFO)
 logger.info("== RAG42 Server Starting ==")
-logger.info(f"Using storage directory: {STORAGE_DIR}")
+logger.info(f"Using storage directory: {RAG42_STORAGE_DIR}")
+logger.info(f"Using cache directory: {RAG42_CACHE_DIR}")
+logger.info(f"Using address: {RAG42_BACKEND_HOST}:{RAG42_BACKEND_PORT}")
+logger.info(f"Using database: {DATABASE_PATH}")
+logger.info(f"Using logger: {LOGGER_PATH}")
 
 # RAG modules
 logger.info("import RAG modules...")
 now = time.time()
 from rag_pipeline import RAGPipeline
 from hybrid_retriever import HybridRetriever
-from qwen_generator import QwenGenerator
 logger.info(f"RAG modules loaded. ({(time.time() - now):.2f} seconds)")
 
 logger.info("Initialize RAG modules...")
 now = time.time()
 retriever = HybridRetriever(collection_path="izhx/COMP5423-25Fall-HQ-small")
-generator = QwenGenerator(model_name="Qwen/Qwen2.5-0.5B-Instruct")
-rag_pipeline = RAGPipeline(retriever=retriever, generator=generator)
+rag_pipeline = RAGPipeline(retriever=retriever)
+rag_pipeline.init_generator(model_name=DEFAULT_MODEL)
 logger.info(f"RAG modules initialized. ({(time.time() - now):.2f} seconds)")
 
 
@@ -177,6 +186,27 @@ def delete_chat(chat_id : str):
         return jsonify({'error': 'Failed to delete chat'}), 500
 
 
+@app.route('/api/message/<string:message_id>', methods=['DELETE'])
+def delete_message(message_id : str):
+    """
+    Deletes a specific message.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Delete the session (messages will be deleted automatically due to CASCADE)
+        cur.execute('DELETE FROM messages WHERE id = ?', (message_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'message deleted successfully'}), 200
+
+    except Exception as e:
+        logger.error(f"Error deleting message {message_id}: {e}")
+        conn.rollback() # Rollback in case of error
+        return jsonify({'error': 'Failed to delete chat'}), 500
+
+
 @app.route('/api/chat/<string:chat_id>/messages', methods=['GET'])
 def get_messages(chat_id : str):
     """
@@ -209,6 +239,8 @@ def send_message(chat_id : str):
     try:
         user_data = request.get_json()
         user_message = user_data.get('message', '').strip()
+        model_name = user_data.get('model_name', DEFAULT_MODEL).strip()
+        logger.debug(f"user send new query using model: {model_name}")
 
         if not user_message:
             return jsonify({'error': 'Message content is required'}), 400
@@ -219,8 +251,19 @@ def send_message(chat_id : str):
         if not session_check:
             conn.close()
             return jsonify({'error': 'Chat session not found'}), 404
+        
+        # 1. Collect history dislogues for Multi-turn
+        history_dialogues = conn.execute('''
+            SELECT sender, content 
+            FROM messages
+            WHERE session_id = ?
+            ORDER BY timestamp ASC
+        ''', (chat_id,)).fetchall()
+        history_dialogues = [dict(msg) for msg in history_dialogues]
+        history_dialogues
+        logger.debug(f'Collected history dialogues: {history_dialogues}')
 
-        # 1. Store the user's message with a UUID
+        # 2. Store the user's message with a UUID
         user_message_id = str(uuid.uuid4())
         cur = conn.cursor()
         cur.execute('''
@@ -228,28 +271,28 @@ def send_message(chat_id : str):
             VALUES (?, ?, 'user', ?)
         ''', (user_message_id, chat_id, user_message)) # Use generated UUID and provided chat_id
 
-        # 2. RAG logic here
+        # 3. RAG logic here
         # --- Run RAG Pipeline ---
         # Note: For now, session_history is passed as None.
         # You can retrieve it from the DB later if implementing multi-turn.
         now = time.time()
         logger.info(f"processing message for [{user_message_id}]:[{user_message[:50]}...]")
-        rag_result = rag_pipeline.run(query=user_message, session_history=None)
+        rag_result = rag_pipeline.run(
+            query = user_message,
+            session_history = history_dialogues,
+            model_name=model_name)
         bot_response = rag_result["answer"]
         thinking_process = rag_result["thinking_process"] # [str]
         logger.info(f"Query {user_message_id} took {(time.time() - now):.2f} seconds.")
+        logger.debug(f"Bot response: {bot_response}")
+        logger.debug(f"Thinking process: {thinking_process}")
 
-        rag_response = {
-            "answer": bot_response,
-            "thinking_process": thinking_process
-        }
-
-        # 3. Store the bot's response message with a UUID
+        # 4. Store the bot's response message with a UUID
         bot_message_id = str(uuid.uuid4())
         cur.execute('''
             INSERT INTO messages (id, session_id, sender, content, thinking_process)
             VALUES (?, ?, 'bot', ?, ?)
-        ''', (bot_message_id, chat_id, rag_response['answer'], json.dumps(rag_response['thinking_process'])))
+        ''', (bot_message_id, chat_id, bot_response, json.dumps(thinking_process)))
 
         # Optional: Update the chat title based on the first user message or a summary
         existing_messages = conn.execute('''
@@ -266,8 +309,8 @@ def send_message(chat_id : str):
         return jsonify({
             'id': bot_message_id, # Return the ID of the bot's message just inserted
             'sender': 'bot',
-            'content': rag_response['answer'],
-            'thinking_process': rag_response['thinking_process']
+            'content': bot_response,
+            'thinking_process': thinking_process
         }), 200
 
     except Exception as e:
@@ -283,4 +326,4 @@ if __name__ == '__main__':
     # Initialize the database when the script is run directly
     init_db()
     # Run the Flask app
-    app.run(debug=True, host='0.0.0.0', port=5001, use_reloader=False)
+    app.run(debug=True, host=RAG42_BACKEND_HOST, port=int(RAG42_BACKEND_PORT), use_reloader=False)

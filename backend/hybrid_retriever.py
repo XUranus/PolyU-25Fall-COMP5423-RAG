@@ -158,7 +158,7 @@ class HybridRetriever:
         # Format results: (id, text, fused_score)
         results = [(doc_id, self.id_to_text[doc_id], score) for doc_id, score in sorted_doc_ids]
         
-        logger.debug(f"Retrieved {len(results)} documents for query: {query[:30]}...")
+        logger.debug(f"Retrieved {len(results)} documents for query: {query}...")
         return results
 
 

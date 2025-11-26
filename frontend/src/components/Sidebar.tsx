@@ -22,7 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ chats, currentChatId, onNewChat, onSe
     e.stopPropagation(); // Prevent triggering onSelectChat if delete button is inside the list item button
     if (window.confirm(`Are you sure you want to delete the chat "${chats.find(c => c.id === chatId)?.title || 'Untitled'}"?`)) {
         try {
-            const response = await fetch(`http://127.0.0.1:5001/api/chat/${chatId}`, {
+            const response = await fetch(`http://127.0.0.1:5000/api/chat/${chatId}`, {
                 method: 'DELETE',
             });
 
@@ -58,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ chats, currentChatId, onNewChat, onSe
       <div className="flex-1 overflow-y-auto p-4"> {/* Make the history scrollable */}
         <h2 className="text-xs uppercase text-gray-400 mb-2">HISTORY</h2>
         <ul className="space-y-1">
-          {chats.map((chat) => (
+          {chats.map((chat : ChatSession) => (
             <li key={chat.id} className="relative"> {/* Add relative positioning for delete button */}
               <div
                 onClick={() => onSelectChat(chat.id)}
@@ -69,9 +69,6 @@ const Sidebar: React.FC<SidebarProps> = ({ chats, currentChatId, onNewChat, onSe
                 onMouseLeave={() => setHoveredChatId(null)}  // Clear hovered chat ID
               >
                 <div className="flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h8v6H8v-6z" />
-                  </svg>
                   {chat.title}
                 </div>
                 {/* Delete Button - Show only on hover */}

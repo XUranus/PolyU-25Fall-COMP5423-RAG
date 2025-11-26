@@ -9,8 +9,9 @@ services:
       - "5000:5000"
     environment:
       - FLASK_ENV=production
+      - INDEX_DIR=/app/cache
     volumes:
-      - ./backend/cache:/app/cache
+      - ./backend/cache:/app/cache # You need to create this dir and download cache files!!!
       - ./backend/storage:/app/storage
       # Optional: mount entire backend dir for dev (comment out in prod)
       # - ./backend:/app
@@ -21,5 +22,5 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:80"
+      - "3000:3000"
     restart: unless-stopped

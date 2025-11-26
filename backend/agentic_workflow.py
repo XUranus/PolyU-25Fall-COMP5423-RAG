@@ -9,7 +9,6 @@ support multi-turn interactions and detailed thought processes.
 
 from typing import List, Dict, Any, Tuple, Optional
 from hybrid_retriever import HybridRetriever # Import our retriever class
-from qwen_generator import QwenGenerator # Import our generator class
 import logging
 import re
 
@@ -19,7 +18,7 @@ logger = logging.getLogger('RAG42')
 # --- Agentic Workflow Core Algorithm ---
 
 class AgenticWorkflow:
-    def __init__(self, retriever: HybridRetriever, generator: QwenGenerator):
+    def __init__(self, retriever: HybridRetriever, generator):
         self.retriever = retriever
         self.generator = generator
 
@@ -59,7 +58,9 @@ class AgenticWorkflow:
 
             Please list the sub-questions, one per line, starting with "Sub-question 1:", "Sub-question 2:", etc.
             """
+        logger.debug(f'decompose_query prompt :\n {decomposition_prompt}')
         decomposition_response = self.generator.generate(decomposition_prompt)
+        logger.debug(f'decomposition_response: \n {decomposition_response}')
 
         # Simple parsing of the LLM's decomposition output
         sub_questions = []
@@ -79,17 +80,14 @@ class AgenticWorkflow:
         Synthesizes the final answer from the original question and the answers to sub-questions.
         """
         context_for_synthesis = "\n".join([f"Sub-answer {i+1}: {ans}" for i, ans in enumerate(sub_answers)])
-        synthesis_prompt = \
-            f"""
-            You are given a complex question and the answers to its constituent sub-questions.
-            Use this information to provide a concise and accurate final answer to the original question.
-
-            Original Question: {question}
-            Sub-answers:
-            {context_for_synthesis}
-
-            Final Answer:
-            """
+        synthesis_prompt = (
+            "You are given a complex question and the answers to its constituent sub-questions. "
+            "Use this information to provide a concise and accurate final answer to the original question.\n\n"
+            f"Original Question: {question}\n\n"
+            "Sub-answers:\n"
+            f"{context_for_synthesis}\n"
+            "Final Answer:"
+        )
         final_answer = self.generator.generate(synthesis_prompt)
         # Post-process to remove potential prefixes like "The final answer is..." ::TODO
         # A simple heuristic might be to take the last non-empty line.
@@ -106,8 +104,6 @@ class AgenticWorkflow:
 
         Args:
             question (str): The input question.
-            retriever (Retriever): Instance of retrieval module.
-            generator (Generator): Instance of generation module.
 
         Returns:
             Tuple[str, List[Dict[str, Any]]]: A tuple containing the final answer (str)
@@ -121,10 +117,11 @@ class AgenticWorkflow:
         # 1. Identify if the question is multi-hop
         multi_hop_pattern = self.identify_multi_hop_pattern(question)
         is_multi_hop = multi_hop_pattern is not None
+        logger.debug(f'question = {question}, is_multi_hop = {is_multi_hop}')
 
         steps_log.append({
             "step": step_cnt,
-            "description": f"Initial Analysis: Question is {'multi-hop' if is_multi_hop else 'single-hop'}. Pattern detected: {multi_hop_pattern or 'None'}.",
+            "description": f"**Initial Analysis**: Question is **{'multi-hop' if is_multi_hop else 'single-hop'}**. Pattern detected: `{multi_hop_pattern or 'None'}`.",
             "type" : "identify",
             "query": question,
             "result": None
@@ -136,7 +133,7 @@ class AgenticWorkflow:
             sub_questions = self.decompose_query(question)
             steps_log.append({
                 "step": step_cnt,
-                "description": f"Query decomposition: The question was broken down into {len(sub_questions)} sub-questions.",
+                "description": f"**Query decomposition**: The question was broken down into {len(sub_questions)} sub-questions.",
                 "type" : "decomposition",
                 "sub_questions": sub_questions,
                 "result": None
@@ -147,7 +144,7 @@ class AgenticWorkflow:
                 is_multi_hop = False
                 steps_log.append({
                     "step": step_cnt,
-                    "description": "Decomposition yielded less than 2 sub-questions. Falling back to single-hop processing.",
+                    "description": "**Fallback**: Decomposition yielded less than 2 sub-questions, falling back to single-hop processing.",
                     "type" : "fallback",
                     "result": None
                 })
@@ -160,8 +157,8 @@ class AgenticWorkflow:
                 # Retrieve relevant documents for the sub-question
                 retrieved_docs = self.retriever.retrieve(sub_q, k = 10) # Adjust top_k as needed
                 steps_log.append({
-                    "step": f"2.{step_cnt}",
-                    "description": f"Retrieval for Sub-question {i+1} : {sub_q}",
+                    "step": step_cnt,
+                    "description": f"Retrieval for Sub-question {i+1} : *{sub_q}*",
                     "type" : "multi_hop_sub_retrieval",
                     "query": sub_q,
                     "retrieved_docs": retrieved_docs
@@ -173,8 +170,8 @@ class AgenticWorkflow:
                 sub_answers.append(sub_answer)
 
                 steps_log.append({
-                    "step": f"3.{step_cnt}",
-                    "description": f"Generated Answer for Sub-question {i+1} : {sub_q}",
+                    "step": step_cnt,
+                    "description": f"Generated Answer for Sub-question {i+1} : *{sub_q}*",
                     "type" : "multi_hop_sub_generation",
                     "query": sub_q,
                     "result": sub_answer
@@ -185,7 +182,7 @@ class AgenticWorkflow:
             final_answer = self.synthesize_answer(original_question, sub_answers)
             steps_log.append({
                 "step": step_cnt,
-                "description": "Synthesis: Final answer generated from sub-answers.",
+                "description": "**Synthesis**: Final answer generated from sub-answers.",
                 "type" : "multi_hop_synthesize_answer",
                 "result": final_answer
             })
