@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime
 import logging
 import os
+import traceback
 
 def setup_logger(name, log_file, level=logging.INFO):
     logger = logging.getLogger(name)
@@ -129,6 +130,7 @@ def get_chat_history():
         return jsonify(chat_list), 200
     except Exception as e:
         logger.error(f"Error fetching chat history: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({'error': 'Failed to retrieve chat history'}), 500
 
 
@@ -154,6 +156,7 @@ def create_new_chat():
         return jsonify({'id': new_chat_id, 'title': 'New Chat'}), 201
     except Exception as e:
         logger.error(f"Error creating new chat: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({'error': 'Failed to create new chat'}), 500
 
 
@@ -183,6 +186,7 @@ def delete_chat(chat_id : str):
 
     except Exception as e:
         logger.error(f"Error deleting chat {chat_id}: {e}")
+        logger.error(traceback.format_exc())
         conn.rollback() # Rollback in case of error
         return jsonify({'error': 'Failed to delete chat'}), 500
 
@@ -204,6 +208,7 @@ def delete_message(message_id : str):
 
     except Exception as e:
         logger.error(f"Error deleting message {message_id}: {e}")
+        logger.error(traceback.format_exc())
         conn.rollback() # Rollback in case of error
         return jsonify({'error': 'Failed to delete chat'}), 500
 
@@ -227,6 +232,7 @@ def get_messages(chat_id : str):
         return jsonify(message_list), 200
     except Exception as e:
         logger.error(f"Error fetching messages for chat {chat_id}: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({'error': 'Failed to retrieve messages for this chat'}), 500
 
 
@@ -317,6 +323,7 @@ def send_message(chat_id : str):
 
     except Exception as e:
         logger.error(f"Error processing message for chat {chat_id}: {e}")
+        logger.error(traceback.format_exc())
         # Consider rolling back the transaction if both messages should be atomic
         if 'conn' in locals():
             conn.rollback()

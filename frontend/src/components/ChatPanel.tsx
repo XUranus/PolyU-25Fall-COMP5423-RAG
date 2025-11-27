@@ -64,7 +64,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
                   id: "FAKEID-MESSAGE-FAILED" + Date.now(),
                   sender: 'bot',
                   timestamp : new Date().toLocaleString('sv-SE', {timeZone: 'Asia/Shanghai'}),
-                  content: "Error loading chat history. Please try again." 
+                  content: "Whops! There seems to be some problems with network, please try again latter." 
                 }]);
             }
         };

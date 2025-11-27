@@ -38,26 +38,6 @@ class HuggingfaceGenerator:
         logger.info("Qwen model loaded successfully.")
 
 
-    def generate_from_docs(self, query: str, retrieved_docs: List[str], max_doc_chars: int = 2000) -> str:
-        """
-        Generates an answer based on the query and retrieved documents.
-
-        Args:
-            query (str): The user's query.
-            retrieved_docs (List[str]): List of retrieved document texts.
-            max_doc_chars (int): Max characters per doc snippet in prompt.
-
-        Returns:
-            str : the answer
-        """
-        prompt = self._build_prompt(query, retrieved_docs, max_doc_chars)
-        logger.debug(f"Generated prompt\n: {prompt}")
-        response = self.generate(prompt)
-
-        logger.info("Generation completed.")
-        return response
-    
-
     def generate(self, prompt: str) -> str:
         """
         Generates an answer based on the query only.
@@ -91,25 +71,6 @@ class HuggingfaceGenerator:
         response = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
 
         logger.info("Generation completed.")
-        # For now, return just the answer. If Feature B is implemented,
-        # this could parse out reasoning steps from the response.
         return response
 
 
-    def _build_prompt(self, query: str, retrieved_docs: List[str], max_doc_chars: int) -> str:
-        """
-        Builds the prompt string for the LLM.
-        """
-        evidence_snippets = "\n".join(
-            [f"[{i+1}] {doc[:max_doc_chars]}" for i, doc in enumerate(retrieved_docs)]
-        )
-        
-        prompt = (
-            "You are a helpful assistant. Answer the question based only on the provided evidence.\n\n"
-            "Evidence:\n"
-            f"{evidence_snippets}\n\n"
-            f"Question: {query}\n\n"
-            "Answer concisely and factually. If the evidence does not contain the answer, say 'I don't know.'\n"
-            "Answer:"
-        )
-        return prompt

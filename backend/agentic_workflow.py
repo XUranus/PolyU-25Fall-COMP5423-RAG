@@ -18,9 +18,106 @@ logger = logging.getLogger('RAG42')
 # --- Agentic Workflow Core Algorithm ---
 
 class AgenticWorkflow:
-    def __init__(self, retriever: HybridRetriever, generator):
+    def __init__(self,
+                 retriever: HybridRetriever,
+                 generator,
+                 need_reformulate : bool = False,
+                 session_history : List = []):
         self.retriever = retriever
         self.generator = generator
+        self.need_reformulate = need_reformulate
+        self.session_history = session_history
+        self.MAX_DECOMPOSITION_STEPS = 10
+
+    def answer_from_docs(self, query: str, retrieved_docs: List[str], max_doc_chars: int = 2000) -> str:
+        """
+        Builds the prompt string from the documents for the LLM.
+        Generates an answer based on the query and retrieved documents.
+
+        Args:
+            query (str): The user's query.
+            retrieved_docs (List[str]): List of retrieved document texts.
+            max_doc_chars (int): Max characters per doc snippet in prompt.
+
+        Returns:
+            str : the answer
+        """
+        evidence_snippets = "\n".join(
+            [f"[{i+1}] {doc[:max_doc_chars]}" for i, doc in enumerate(retrieved_docs)]
+        )
+        
+        prompt = (
+            "Answer the question using ONLY the information in the evidence below. "
+            "If the evidence does not contain enough information to answer the question, respond with exactly: 'I don't know.'\n\n"
+            
+            "Evidence:\n"
+            f"{evidence_snippets}\n\n"
+            
+            f"Question: {query}\n\n"
+            
+            "Answer (be concise and factual):"
+        )
+        logger.debug(f"Generated prompt\n: {prompt}")
+        response = self.generator.generate(prompt)
+        return response
+    
+
+    def reformulate_query(self, query: str, history: List[Dict[str, str]]) -> str:
+        """
+        Reformulates a follow-up query into a standalone query using conversation history.
+        Uses the generator LLM to perform coreference resolution and context expansion.
+
+        Example:
+            History: [{"sender": "user", "content": "Where was Barack Obama born?"},
+                    {"sender": "bot", "content": "Barack Obama was born in Honolulu, Hawaii."}]
+            Current query: "What about his wife?"
+            Output: "Where was Barack Obama's wife born?"
+
+        Args:
+            generator: The selected generator
+            query (str): The current user query.
+            history (List[Dict[str, str]]): Prior conversation turns.
+
+        Returns:
+            str: A contextually reformulated standalone query.
+        """
+        try:
+            # Build conversation transcript
+            conversation_lines = []
+            for turn in history:
+                role = "User" if turn["sender"] == "user" else "Assistant"
+                conversation_lines.append(f"{role}: {turn['content']}")
+            conversation_text = "\n".join(conversation_lines)
+            
+            # Construct prompt for query reformulation
+            reformulation_prompt = (
+                "You are a precise query rewriting assistant. Your ONLY task is to rewrite the final user query as a standalone question by resolving coreferences (e.g., 'he', 'his', 'it') using the conversation history. "
+                "Do NOT change the user's intent, add information, or answer the question. Return ONLY the rewritten question—no prefix, no explanation.\n\n"
+                
+                "Conversation History:\n"
+                f"{conversation_text}\n\n"
+                
+                "Final User Query:\n"
+                f"{query}\n\n"
+                
+                "Standalone Question:"
+            )
+            logger.debug(f"Reformulation prompt:\n {reformulation_prompt}")
+            # Use the generator to reformulate
+            reformulated = self.generator.generate(reformulation_prompt).strip()
+
+            # Fallback if LLM returns empty or malformed output
+            if not reformulated or len(reformulated) < 3:
+                logger.warning("Query reformulation returned empty or short output. Falling back to original query.")
+                return query
+            
+            logger.debug(f"Reformulated query: {reformulated}")
+            return reformulated
+
+        except Exception as e:
+            logger.error(f"Error during query reformulation: {e}. Falling back to original query.")
+            return query
+
 
 
     def identify_multi_hop_pattern(self, question: str) -> Optional[str]:
@@ -28,16 +125,29 @@ class AgenticWorkflow:
         Heuristically identifies if a question might be multi-hop based on keywords/phrases.
         This is a simple rule-based check. More sophisticated methods could use NER/RE.
         """
-        question_lower = question.lower()
-        # Common patterns for multi-hop questions in datasets like HotpotQA
+        question_lower = question.lower().strip()
+
+        # Enhanced multi-hop indicators with more comprehensive patterns
         multi_hop_indicators = [
-            r'\bwhen.*won\b', # "when he won", "when she was born"
-            r'\bwhere.*was.*born\b',
-            r'\bwho.*won.*in\b',
-            r'\bsecond.*finisher.*who.*drive.*for\b', #
-            r'\bfirst.*won.*then.*work.*for\b',
-            # TODO:: Add more patterns as needed
+            # Temporal relationships
+            r'\bwhen.*(?:won|received|got|achieved|was awarded)\b',
+            r'\bwhen.*was.*born\b',
+            r'\b(?:before|after|during|following).*when\b',
+            # Causal relationships
+            r'\b(?:what|who|which).*led to\b',
+            r'\b(?:what|who|which).*caused\b',
+            r'\b(?:result of|consequence of|due to)\b',
+            # Comparative/relational
+            r'\b(?:who|what|which).*(?:after|before|instead of|rather than)\b',
+            r'\b(?:first.*then|initially.*subsequently|earlier.*later)\b',
+            # Entity relationship chains
+            r'\b(?:who|what).*works for.*who\b',
+            r'\b(?:where|which).*located in.*where\b',
+            r'\b(?:what|which).*created by.*who\b',
+            # Multi-entity references
+            r'\b(?:both.*and|either.*or|neither.*nor).*\b(?:who|what|where)\b',
         ]
+        
         for pattern in multi_hop_indicators:
             if re.search(pattern, question_lower):
                 return pattern
@@ -48,31 +158,52 @@ class AgenticWorkflow:
         """
         Decomposes a multi-hop question into sub-questions using the LLM.
         """
-        decomposition_prompt = \
-            f"""
-            You are given a complex question that requires multiple steps to answer.
-            Please break it down into simpler, sequential sub-questions that can be answered independently.
-            The sub-questions should be self-contained and lead logically to the final answer.
+        few_shot = (
+            "Example:\n"
+            "Complex Question: Who was the director of the movie that won Best Picture at the 2020 Oscars?\n"
+            "Sub-questions:\n"
+            "1. Which movie won Best Picture at the 2020 Oscars?\n"
+            "2. Who directed [answer from 1]?\n\n"
+        )
 
-            Question: {question}
-
-            Please list the sub-questions, one per line, starting with "Sub-question 1:", "Sub-question 2:", etc.
-            """
+        decomposition_prompt = (
+            "You are an expert at breaking down complex questions. Decompose the following question into a sequence of simple, answerable sub-questions. "
+            "Each sub-question must build logically on the previous one and use concrete entities. Do NOT answer—just list sub-questions.\n\n"
+            
+            f"{few_shot}"
+            f"Complex Question: {question}\n"
+            "Sub-questions:\n"
+            "1."
+        )
+        
         logger.debug(f'decompose_query prompt :\n {decomposition_prompt}')
         decomposition_response = self.generator.generate(decomposition_prompt)
         logger.debug(f'decomposition_response: \n {decomposition_response}')
 
-        # Simple parsing of the LLM's decomposition output
+        # Enhanced parsing with multiple formats
         sub_questions = []
         lines = decomposition_response.split('\n')
+        
         for line in lines:
-            # Match lines like "Sub-question 1: Who is X?" or "Sub-question 2: Where is Y?"
-            match = re.match(r'^Sub-question\s+\d+:\s*(.+)', line.strip(), re.IGNORECASE)
-            if match:
-                sub_q = match.group(1).strip()
-                if sub_q:
+            line = line.strip()
+            # Match numbered lists (1., 2., etc.)
+            numbered_match = re.match(r'^\d+\.\s*(.+)', line)
+            if numbered_match:
+                sub_q = numbered_match.group(1).strip()
+                if sub_q and not sub_q.lower().startswith('provide up to') and not sub_q.startswith('<sub_questions>'):
                     sub_questions.append(sub_q)
+            # Alternative format: "Sub-question 1:", "Sub-question 2:", etc.
+            elif ':' in line and ('sub-question' in line.lower() or 'sub question' in line.lower()):
+                match = re.match(r'^.*?:\s*(.+)', line.strip(), re.IGNORECASE)
+                if match:
+                    sub_q = match.group(1).strip()
+                    if sub_q:
+                        sub_questions.append(sub_q)
+
+        # Remove empty strings and limit to max steps
+        sub_questions = [sq for sq in sub_questions if sq.strip()][:self.MAX_DECOMPOSITION_STEPS]
         return sub_questions
+
 
 
     def synthesize_answer(self, question: str, sub_answers: List[str]) -> str:
@@ -81,11 +212,14 @@ class AgenticWorkflow:
         """
         context_for_synthesis = "\n".join([f"Sub-answer {i+1}: {ans}" for i, ans in enumerate(sub_answers)])
         synthesis_prompt = (
-            "You are given a complex question and the answers to its constituent sub-questions. "
-            "Use this information to provide a concise and accurate final answer to the original question.\n\n"
+            "You are given a complex question and the verified answers to its sub-questions. "
+            "Combine ONLY the provided sub-answers to form a final, concise answer to the original question. "
+            "Do NOT use external knowledge or speculate. If sub-answers are insufficient, say 'I don't know.'\n\n"
+            
             f"Original Question: {question}\n\n"
             "Sub-answers:\n"
-            f"{context_for_synthesis}\n"
+            f"{context_for_synthesis}\n\n"
+            
             "Final Answer:"
         )
         final_answer = self.generator.generate(synthesis_prompt)
@@ -116,6 +250,17 @@ class AgenticWorkflow:
         sub_questions = []
         original_question = question
         step_cnt = 1
+
+        if self.need_reformulate:
+            new_query = self.reformulate_query(question, self.session_history)
+            if new_query != question:
+                steps_log.append({
+                    "step": step_cnt,
+                    "type" : "query_reformulation",
+                    "description": f"Reformulated query to: *'{new_query}'*"
+                })
+                step_cnt += 1
+                question = new_query
 
         # 1. Identify if the question is multi-hop
         multi_hop_pattern = self.identify_multi_hop_pattern(question)
@@ -169,7 +314,7 @@ class AgenticWorkflow:
                 step_cnt += 1
 
                 # Generate an answer for the sub-question using retrieved docs
-                sub_answer = self.generator.generate_from_docs(sub_q, [doc_text for (_, doc_text, _) in retrieved_docs])
+                sub_answer = self.answer_from_docs(sub_q, [doc_text for (_, doc_text, _) in retrieved_docs])
                 sub_answers.append(sub_answer)
 
                 steps_log.append({
@@ -203,7 +348,7 @@ class AgenticWorkflow:
             })
             step_cnt += 1
 
-            final_answer = self.generator.generate_from_docs(question, [doc_text for (_, doc_text, _) in retrieved_docs])
+            final_answer = self.answer_from_docs(question, [doc_text for (_, doc_text, _) in retrieved_docs])
             steps_log.append({
                 "step": step_cnt,
                 "description": "Standard RAG Generation (Single-Hop)",

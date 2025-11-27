@@ -7,8 +7,8 @@ echo "Building The RAG42 Project..."
 mkdir -p volumes/storage volumes/cache
 cwd=$(pwd)
 cd volumes/cache
-wget https://github.com/XUranus/PolyU-25Fall-COMP5423-RAG/archive/refs/tags/BM25Cache.zip
-unzip BM25Cache.zip
+wget https://github.com/XUranus/PolyU-25Fall-COMP5423-RAG/releases/download/BM25Cache/cache.zip
+unzip cache.zip
 cd $cwd
 
 # Build the containers

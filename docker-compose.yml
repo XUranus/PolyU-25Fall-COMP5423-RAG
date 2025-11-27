@@ -10,8 +10,8 @@ services:
     environment:
       - FLASK_ENV=production
     volumes:
-      - ./backend/cache:/app/cache # You need to create this dir and download cache files!!!
-      - ./backend/storage:/app/storage
+      - ./volumes/cache:/app/cache # You need to create this dir and download cache files!!!
+      - ./volumes/storage:/app/storage
       # Optional: mount entire backend dir for dev (comment out in prod)
       # - ./backend:/app
     restart: unless-stopped
