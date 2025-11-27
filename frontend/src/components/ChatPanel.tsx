@@ -169,51 +169,51 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
                 }`}
             >
                 <div
-                className={`max-w-[80%] p-3 rounded-lg ${
-                    msg.sender === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-800 text-white'
-                }`}>
+                  className={`max-w-[80%] p-3 rounded-lg ${
+                      msg.sender === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-800 text-white'
+                  }`}>
 
-                {msg.sender === 'bot' && msg.thinkingProcess && (
-                  <ThinkingPanel steps={msg.thinkingProcess}/>
-                )}
+                  {msg.sender === 'bot' && msg.thinkingProcess && (
+                    <ThinkingPanel steps={msg.thinkingProcess}/>
+                  )}
 
-                { /* Message Content */ }
-                <MarkdownRenderer markdownContent={msg.content} />
+                  { /* Message Content */ }
+                  <MarkdownRenderer markdownContent={msg.content} />
                 
 
 
-                <hr className="my-4 border-t border-gray-300" />
-                <div className="flex items-center justify-end">
-                  <span className="text-xs text-gray-200 whitespace-nowrap mr-2">{msg.timestamp}</span>
-                  
-                  {/* Fixed-size container for delete button — always reserves space, just hides content */}
-                  <div className="w-6 h-6 flex items-center justify-center">
-                    {hoveredMessageId === msg.id && (
-                      <button
-                        onClick={(e) => handleDeleteMessageClick(msg.id, e)}
-                        className="p-1 rounded hover:bg-red-600 transition-colors"
-                        aria-label="Delete message"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4 text-gray-400 hover:text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
+                  <hr className="my-4 border-t border-gray-300" />
+                  <div className="flex items-center justify-end">
+                    <span className="text-xs text-gray-200 whitespace-nowrap mr-2">{msg.timestamp}</span>
+                    
+                    {/* Fixed-size container for delete button — always reserves space, just hides content */}
+                    <div className="w-6 h-6 flex items-center justify-center">
+                      {hoveredMessageId === msg.id && (
+                        <button
+                          onClick={(e) => handleDeleteMessageClick(msg.id, e)}
+                          className="p-1 rounded hover:bg-red-600 transition-colors"
+                          aria-label="Delete message"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    )}
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4 text-gray-400 hover:text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
 
                               
 

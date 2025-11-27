@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 
 import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel'; // Import ChatPanel
-
+import { supportModels } from './config'
 
 // Define types for our data structures
 interface ChatSession {
@@ -12,11 +12,6 @@ interface ChatSession {
   title: string;
   updated_at: string; // ISO string format
 }
-
-const supportedModels : string[] = [
-    "Qwen/Qwen2.5-0.5B-Instruct",
-    "qwen-turbo"
-]
 
 function ChatPage() {
   const { chatId } = useParams();
@@ -86,14 +81,6 @@ function ChatPage() {
     if (currentChatId === chatId) {
         setCurrentChatId(null);
         navigate(`/`); // Navigate to home or a default route
-        // Optionally, select the next available chat or clear the chat panel
-        // For example, select the first chat if available:
-        // if (availableChats.length > 1) {
-        //   const remainingChats = availableChats.filter(chat => chat.id !== chatId);
-        //   setCurrentChatId(remainingChats[0].id);
-        // } else {
-        //   setCurrentChatId(null); // Or keep it null if no chats remain
-        // }
     }
   };
 
@@ -132,15 +119,18 @@ function ChatPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="text-xl font-bold">Group42 AI</h1>
+          <h1 className="text-xl font-bold">Group42 RAG AI</h1>
           <div className="hidden md:block">
             <select
                 className="bg-gray-700 text-white px-3 py-1 rounded"
                 value={currentModel}
                 onChange={handleCurrentModelChange}
               >
-                {supportedModels.map(modelName => (
-                  <option value={modelName} key={modelName}>{modelName}</option>
+                {supportModels.map(model => (
+                  <option value={model.value} key={model.value}>
+                    {model.local?<span>🤗</span>:<span>🤖</span>}&nbsp;
+                    {model.name}
+                    </option>
                 ))}
               </select>
           </div>
