@@ -4,4 +4,4 @@
 export $(grep -v '^#' .env | xargs)
 
 echo "Starting application..."
-docker-compose up --build
+docker-compose up

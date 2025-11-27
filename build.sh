@@ -5,6 +5,11 @@ echo "Building The RAG42 Project..."
 
 # Create necessary directories
 mkdir -p volumes/storage volumes/cache
+cwd=$(pwd)
+cd volumes/cache
+wget https://github.com/XUranus/PolyU-25Fall-COMP5423-RAG/archive/refs/tags/BM25Cache.zip
+unzip BM25Cache.zip
+cd $cwd
 
 # Build the containers
 echo "Building containers..."
