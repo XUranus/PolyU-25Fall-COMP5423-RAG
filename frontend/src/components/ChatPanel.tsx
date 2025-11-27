@@ -7,7 +7,7 @@ import {
   MessageHttpResponse, ThinkingGlow, Message,
   convertHttpResponseToMessage, ThinkingProcessStep, MarkdownRenderer }
   from './ThinkingPanel'
-
+import { API_PREFIX } from '../config'
 
 interface ChatPanelProps {
   currentChatId: string | null; // Receive the active chat ID from App
@@ -26,7 +26,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
   const handleDeleteMessageClick = async (messageId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering onSelectChat if delete button is inside the list item button
     try {
-        const response = await fetch(`http://127.0.0.1:5000/api/message/${messageId}`, {
+        const response = await fetch(`${API_PREFIX}/api/message/${messageId}`, {
             method: 'DELETE',
         });
 
@@ -46,7 +46,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
     if (currentChatId !== null) {
         const fetchMessages = async () => {
             try {
-                const response = await fetch(`http://127.0.0.1:5000/api/chat/${currentChatId}/messages`);
+                const response = await fetch(`${API_PREFIX}/api/chat/${currentChatId}/messages`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -84,11 +84,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
     if (!inputText.trim() || !currentChatId || isLoading) return;
 
     let temp_user_message_id = "FAKEID-TEMP-MESSAGE" + Date.now()
+    const timestamp = new Date().toLocaleString('sv-SE', {timeZone: 'Asia/Shanghai'})
+
     const userMessage: Message = {
       id: temp_user_message_id, // Temporary ID, will be replaced by server ID
       sender: 'user',
       content: inputText,
-      timestamp: new Date().toLocaleString('sv-SE', {timeZone: 'Asia/Shanghai'})
+      timestamp,
     };
 
     // Optimistically add user message to UI
@@ -97,7 +99,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
     setIsLoading(true);
 
     try {
-      const response = await fetch(`http://127.0.0.1:5000/api/chat/${currentChatId}/messages`, {
+      const response = await fetch(`${API_PREFIX}/api/chat/${currentChatId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -118,9 +120,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
         thinking_process: ThinkingProcessStep[];
       } = await response.json();
 
+      const lastMessage : Message = {
+        id: botResponse.user_message_id,
+        sender: 'user',
+        content: inputText,
+        timestamp,
+      };
+      
       let newMessages = messages.filter(message => message.id != temp_user_message_id)
       newMessages = [
         ...newMessages,
+        lastMessage,
         {
           id: botResponse.id,
           sender: botResponse.sender,
@@ -168,51 +178,52 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
                 msg.sender === 'user' ? 'justify-end' : 'justify-start'
                 }`}
             >
-                <div
-                  className={`max-w-[80%] p-3 rounded-lg ${
-                      msg.sender === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-800 text-white'
-                  }`}>
+                <div>
+                  <span className="text-xs text-gray-500 whitespace-nowrap mr-2"><i>{msg.timestamp}</i></span>
+                  <div className={`max-w-[100%] p-3 rounded-lg ${
+                        msg.sender === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-800 text-white'
+                    }`}>
 
-                  {msg.sender === 'bot' && msg.thinkingProcess && (
-                    <ThinkingPanel steps={msg.thinkingProcess}/>
-                  )}
+                    {msg.sender === 'bot' && msg.thinkingProcess && (
+                      <ThinkingPanel steps={msg.thinkingProcess}/>
+                    )}
 
-                  { /* Message Content */ }
-                  <MarkdownRenderer markdownContent={msg.content} />
-                
+                    { /* Message Content */ }
+                    <MarkdownRenderer markdownContent={msg.content} />
+                  
 
 
-                  <hr className="my-4 border-t border-gray-300" />
-                  <div className="flex items-center justify-end">
-                    <span className="text-xs text-gray-200 whitespace-nowrap mr-2">{msg.timestamp}</span>
-                    
-                    {/* Fixed-size container for delete button — always reserves space, just hides content */}
-                    <div className="w-6 h-6 flex items-center justify-center">
-                      {hoveredMessageId === msg.id && (
-                        <button
-                          onClick={(e) => handleDeleteMessageClick(msg.id, e)}
-                          className="p-1 rounded hover:bg-red-600 transition-colors"
-                          aria-label="Delete message"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4 text-gray-400 hover:text-white"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                    <div className="flex items-center justify-end">
+                      
+                      {/* Fixed-size container for delete button — always reserves space, just hides content */}
+                      <div className="w-6 h-6 flex items-center justify-center">
+                        {hoveredMessageId === msg.id && (
+                          <button
+                            onClick={(e) => handleDeleteMessageClick(msg.id, e)}
+                            className="p-1 rounded hover:bg-red-600 transition-colors"
+                            aria-label="Delete message"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
-                        </button>
-                      )}
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4 text-gray-400 hover:text-white"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
                     </div>
+
                   </div>
 
                               

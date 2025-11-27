@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 
 import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel'; // Import ChatPanel
-import { supportModels } from './config'
+import { SUPPORT_MODELS, API_PREFIX } from './config'
 
 // Define types for our data structures
 interface ChatSession {
@@ -25,7 +25,7 @@ function ChatPage() {
   useEffect(() => {
     const fetchChatHistory = async () => {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/chats/list');
+            const response = await fetch(API_PREFIX + '/api/chats/list');
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -50,7 +50,7 @@ function ChatPage() {
   // Handler to be passed to Sidebar to create a new chat
   const handleNewChat = async () => {
     try {
-        const response = await fetch('http://127.0.0.1:5000/api/chats/new', {
+        const response = await fetch(API_PREFIX + '/api/chats/new', {
             method: 'POST',
         });
         if (!response.ok) {
@@ -126,9 +126,9 @@ function ChatPage() {
                 value={currentModel}
                 onChange={handleCurrentModelChange}
               >
-                {supportModels.map(model => (
+                {SUPPORT_MODELS.map(model => (
                   <option value={model.value} key={model.value}>
-                    {model.local?<span>🤗</span>:<span>🤖</span>}&nbsp;
+                    {model.local?'🤗':'🤖'}&nbsp;
                     {model.name}
                     </option>
                 ))}

@@ -1,6 +1,8 @@
 # backend dockerfilequit
 FROM continuumio/miniconda3:latest
 
+ARG RAG42_BACKEND_PORT
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
@@ -15,7 +17,6 @@ COPY requirements.txt ./
 COPY db_init.sql ./
 COPY *.py ./
 
-
 # Create conda environment
 RUN conda env create -f environment.yml
 
@@ -26,7 +27,9 @@ SHELL ["conda", "run", "-n", "COMP5423-RAG42", "/bin/bash", "-c"]
 RUN pip install -r requirements.txt
 
 # Expose port
-EXPOSE 5000
+
+RUN echo "backend will use port: $RAG42_BACKEND_PORT"
+EXPOSE $RAG42_BACKEND_PORT
 
 # Start the Flask application
 CMD ["conda", "run", "-n", "COMP5423-RAG42", "python", "server.py"]

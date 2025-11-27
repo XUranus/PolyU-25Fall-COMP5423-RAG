@@ -5,11 +5,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    env_file:  # This sets runtime environment variables
+      - .env
     ports:
       - "5000:5000"
     environment:
       - FLASK_ENV=production
-      - INDEX_DIR=/app/cache
     volumes:
       - ./backend/cache:/app/cache # You need to create this dir and download cache files!!!
       - ./backend/storage:/app/storage
@@ -18,6 +19,8 @@ services:
     restart: unless-stopped
 
   frontend:
+    env_file: # This sets runtime environment variables
+        - .env
     build:
       context: ./frontend
       dockerfile: Dockerfile

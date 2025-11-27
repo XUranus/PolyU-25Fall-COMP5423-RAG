@@ -4,7 +4,7 @@ interface SupportModelConfigItem {
     local : boolean // if is a local hugging-face model or a openai API model
 }
 
-export const supportModels : SupportModelConfigItem[] = [
+export const SUPPORT_MODELS : SupportModelConfigItem[] = [
     {
         name : "Qwen/Qwen2.5-0.5B-Instruct",
         value : "Qwen/Qwen2.5-0.5B-Instruct",
@@ -17,6 +17,9 @@ export const supportModels : SupportModelConfigItem[] = [
     }
 ]
 
+export const API_PREFIX : string = "http://127.0.0.1:5000"
+
 export default {
-    supportModels
+    SUPPORT_MODELS,
+    API_PREFIX,
 }

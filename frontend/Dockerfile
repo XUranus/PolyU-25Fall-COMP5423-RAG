@@ -1,6 +1,8 @@
 # frontend dockerfile
 FROM node:22-alpine
 
+ARG RAG42_FRONTEND_PORT
+
 WORKDIR /app
 
 # Copy package files
@@ -23,5 +25,6 @@ FROM nginx:alpine
 COPY --from=0 /app/build /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
 
-EXPOSE 3000
+RUN echo "frontend container will use port: $RAG42_FRONTEND_PORT"
+EXPOSE $RAG42_FRONTEND_PORT
 CMD ["nginx", "-g", "daemon off;"]

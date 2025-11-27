@@ -1,5 +1,6 @@
 // src/components/Sidebar.tsx
 import React, { useState } from 'react';
+import { API_PREFIX } from '../config'
 
 interface ChatSession {
   id: string;
@@ -22,7 +23,7 @@ const Sidebar: React.FC<SidebarProps> = ({ chats, currentChatId, onNewChat, onSe
     e.stopPropagation(); // Prevent triggering onSelectChat if delete button is inside the list item button
     if (window.confirm(`Are you sure you want to delete the chat "${chats.find(c => c.id === chatId)?.title || 'Untitled'}"?`)) {
         try {
-            const response = await fetch(`http://127.0.0.1:5000/api/chat/${chatId}`, {
+            const response = await fetch(API_PREFIX + `/api/chat/${chatId}`, {
                 method: 'DELETE',
             });
 

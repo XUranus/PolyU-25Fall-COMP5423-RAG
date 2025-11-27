@@ -10,19 +10,10 @@ In this project, we will develop and evaluate an RAG system based on a sampled s
 ![](screenshot.png)
 
 ## Build & Start
-To build a docker image:
-```bash
-cd $path_to_project
-sh build.sh
-```
-And to start:
-```bash
-sh start.sh
-```
+To build a docker image, copy `.env.example` to `.env` and configure it with your preferences.
 
-## Environments
-Applicable environments. e.g,
-```
+Applicable environments in `.env` are like:
+```bash
 RAG42_FRONTEND_PORT=3000
 RAG42_BACKEND_PORT=5000
 RAG42_BACKEND_HOST=0.0.0.0
@@ -32,3 +23,8 @@ RAG42_OPENAI_API_KEY=sk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 RAG42_OPENAI_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 ```
 
+Start to build images and to run:
+```bash
+source .env && sh build.sh
+sh start.sh
+```
