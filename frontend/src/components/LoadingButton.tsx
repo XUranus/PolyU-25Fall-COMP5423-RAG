@@ -1,12 +1,27 @@
 import React from 'react';
 
-const LoadingButton = ({ loading, children, noinput, ...props }) => {
+interface LoadingButtonProps {
+  loading : boolean,
+  children : any,
+  noinput : boolean,
+  disabled : boolean,
+  onClick : () => void
+}
+
+const LoadingButton : React.FC<LoadingButtonProps> = ({ loading, children, noinput, disabled, onClick }) => {
+  const handleClick = () => {
+    // Only call onClick if the button is not disabled
+    if (!disabled) {
+      onClick();
+    }
+  };
+
   return (
     <button
-      {...props}
-      disabled={loading}
+      disabled={disabled} // Use the disabled prop instead of just loading
+      onClick={handleClick}
       className={`flex items-center justify-center px-4 py-2 rounded-md font-medium
-        ${loading || noinput? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
+        ${disabled ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
         text-white transition-colors`}
     >
       {loading ? (

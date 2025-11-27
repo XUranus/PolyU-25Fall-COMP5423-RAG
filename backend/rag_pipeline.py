@@ -107,8 +107,12 @@ class RAGPipeline:
             thinking_process_item = {}
             step_no = step['step']
             step_description = step['description']
+            step_type = step['type']
+            thinking_process_item['type'] = step['type']
             thinking_process_item['step'] = step_no
             thinking_process_item['description'] = f"[{step_no}] {step_description}"
+            if step_type == 'multi_hop_sub_generation':
+                thinking_process_item['result'] = step['result']
             if 'retrieved_docs' in step:
                 thinking_process_item['retrieved_docs'] = [{'id' : id, 'text': text, 'score': score} for id, text, score in step['retrieved_docs']]
             thinking_process.append(thinking_process_item)

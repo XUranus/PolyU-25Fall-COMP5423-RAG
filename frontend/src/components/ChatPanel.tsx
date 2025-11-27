@@ -1,81 +1,12 @@
 // src/components/ChatPanel.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 import LoadingButton from './LoadingButton';
-import ThinkingGlow from './ThinkingGlow';
-
-const MarkdownRenderer: React.FC<{ markdownContent: string }> = ({ markdownContent }) => {
-  return (
-    <div className="prose prose-lg max-w-none dark:prose-invert">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-        {markdownContent}
-      </ReactMarkdown>
-    </div>
-  );
-};
-
-interface MessageHttpResponse {
-  id: string;
-  sender: string,
-  content: string;
-  thinking_process?: string;
-  timestamp: string;
-}
-
-interface RetrievedDoc {
-  docId: string;
-  text: string;
-  score: number;
-}
-
-interface ThinkingProcessStep {
-  step: number,
-  description: string,
-  type : string,
-  retrieved_docs? : RetrievedDoc[]
-}
-
-interface Message {
-  id: string;
-  sender: 'user' | 'bot';
-  content: string;
-  thinkingProcess?: ThinkingProcessStep[]; // Optional for bot messages
-  timestamp: string;
-}
-
-function convertHttpResponseToMessage(httpResponse: MessageHttpResponse): Message {
-  // Basic mapping
-  const convertedMessage: Message = {
-    id: httpResponse.id,
-    sender: httpResponse.sender as 'user' | 'bot', // Type assertion after confirming source
-    content: httpResponse.content,
-    timestamp: httpResponse.timestamp,
-  };
-
-  // Parse thinking_process if it exists
-  if (httpResponse.thinking_process) {
-    try {
-      // Attempt to parse the JSON string into an array of strings
-      const parsedThinkingProcess: unknown = JSON.parse(httpResponse.thinking_process);
-      // Type guard to ensure it's an array of strings
-      if (Array.isArray(parsedThinkingProcess)) {
-        convertedMessage.thinkingProcess = parsedThinkingProcess as ThinkingProcessStep[];
-      } else {
-        console.warn(`Parsed thinking_process is not an array of strings for message ${httpResponse.id}. Got:`, parsedThinkingProcess);
-        // Optionally, you could set it to an empty array or skip the field if parsing fails strictly
-        // convertedMessage.thinkingProcess = [];
-      }
-    } catch (error) {
-      console.error(`Failed to parse thinking_process JSON for message ${httpResponse.id}:`, error);
-      console.error(`Raw thinking_process string was:`, httpResponse.thinking_process);
-      // Optionally, add an error message to the thinkingProcess field
-      // convertedMessage.thinkingProcess = [`Error parsing thinking process: ${error.message}`];
-    }
-  }
-  return convertedMessage;
-}
+import ThinkingPanel from './ThinkingPanel'
+import {
+  MessageHttpResponse, ThinkingGlow, Message,
+  convertHttpResponseToMessage, ThinkingProcessStep, MarkdownRenderer }
+  from './ThinkingPanel'
 
 
 interface ChatPanelProps {
@@ -130,7 +61,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
                 console.error("Failed to fetch messages:", error);
                 // Set a default message or handle error state
                 setMessages([{
-                  id: "FAKEID-MESSAGE-FAILED",
+                  id: "FAKEID-MESSAGE-FAILED" + Date.now(),
                   sender: 'bot',
                   timestamp : new Date().toLocaleString('sv-SE', {timeZone: 'Asia/Shanghai'}),
                   content: "Error loading chat history. Please try again." 
@@ -152,8 +83,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
     console.log('handleSend ', inputText)
     if (!inputText.trim() || !currentChatId || isLoading) return;
 
+    let temp_user_message_id = "FAKEID-TEMP-MESSAGE" + Date.now()
     const userMessage: Message = {
-      id: "FAKEID-TEMP-MESSAGE", // Temporary ID, will be replaced by server ID later if needed
+      id: temp_user_message_id, // Temporary ID, will be replaced by server ID
       sender: 'user',
       content: inputText,
       timestamp: new Date().toLocaleString('sv-SE', {timeZone: 'Asia/Shanghai'})
@@ -179,15 +111,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
 
       const botResponse: {
         id: string;
+        user_message_id : string,
         sender: 'bot';
         content: string;
         timestamp: string;
         thinking_process: ThinkingProcessStep[];
       } = await response.json();
 
-      // Add the bot's response to the messages
-      setMessages((prev : Message[]) => [
-        ...prev,
+      let newMessages = messages.filter(message => message.id != temp_user_message_id)
+      newMessages = [
+        ...newMessages,
         {
           id: botResponse.id,
           sender: botResponse.sender,
@@ -195,12 +128,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
           thinkingProcess: botResponse.thinking_process,
           timestamp: new Date().toLocaleString('sv-SE', {timeZone: 'Asia/Shanghai'}),
         }
-      ]);
+      ]
+      // Add the bot's response to the messages
+      setMessages(newMessages);
     } catch (error) {
       console.error("Failed to send message:", error);
       // Add an error message from the bot
       setMessages((prev : Message[]) => [...prev, { 
-          id: "FAKEID-MESSAGE-FAILED",
+          id: "FAKEID-MESSAGE-FAILED" + Date.now(),
           sender: 'bot',
           content: "Sorry, an error occurred while processing your message.",
           timestamp: new Date().toLocaleString('sv-SE', {timeZone: 'Asia/Shanghai'})
@@ -241,58 +176,44 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
                 }`}>
 
                 {msg.sender === 'bot' && msg.thinkingProcess && (
-                    <div className="mb-2 p-2 bg-gray-700 rounded text-sm">
-                      <details className="mt-2 p-2 text-gray-400" open>
-                          <summary><strong>View Thinking Process ({msg.thinkingProcess.length} steps)</strong></summary>
-                          <div className="mt-1 space-y-1">
-                          {msg.thinkingProcess.map((thinkingStep : ThinkingProcessStep) => (
-                            <div key={thinkingStep.step} className="flex items-start">
-                                <span className="mr-1"></span>
-                                <span><MarkdownRenderer markdownContent={thinkingStep.description} /></span>
-                            </div>
-                          ))}
-                      </div>
-                      </details>
-                    </div>
+                  <ThinkingPanel steps={msg.thinkingProcess}/>
                 )}
-
 
                 { /* Message Content */ }
                 <MarkdownRenderer markdownContent={msg.content} />
                 
 
 
-
-              <hr className="my-4 border-t border-gray-300" />
-              <div className="flex items-center justify-end">
-                <span className="text-xs text-gray-200 whitespace-nowrap mr-2">{msg.timestamp}</span>
-                
-                {/* Fixed-size container for delete button — always reserves space, just hides content */}
-                <div className="w-6 h-6 flex items-center justify-center">
-                  {hoveredMessageId === msg.id && (
-                    <button
-                      onClick={(e) => handleDeleteMessageClick(msg.id, e)}
-                      className="p-1 rounded hover:bg-red-600 transition-colors"
-                      aria-label="Delete message"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4 text-gray-400 hover:text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
+                <hr className="my-4 border-t border-gray-300" />
+                <div className="flex items-center justify-end">
+                  <span className="text-xs text-gray-200 whitespace-nowrap mr-2">{msg.timestamp}</span>
+                  
+                  {/* Fixed-size container for delete button — always reserves space, just hides content */}
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    {hoveredMessageId === msg.id && (
+                      <button
+                        onClick={(e) => handleDeleteMessageClick(msg.id, e)}
+                        className="p-1 rounded hover:bg-red-600 transition-colors"
+                        aria-label="Delete message"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
-                  )}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-4 w-4 text-gray-400 hover:text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
 
                               
 
@@ -301,9 +222,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
             ))}
             {isLoading && (
                 <div className="flex justify-start">
-                    <div className="bg-gray-800 text-white p-3 rounded-lg max-w-[80%]">
-                        <p>Thinking...</p>
+                    <div className="mb-2 p-2 bg-gray-700 rounded text-sm">
+                      <div className='cursor-pointer hover:bg-gray-600 p-1 rounded bg-gray-600'>
+                        <strong><p>💭 Thinking... </p></strong>
                         <ThinkingGlow isThinking={true} text={'x'.repeat(50)}/>
+                      </div>
                     </div>
                 </div>
             )}
@@ -323,7 +246,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
 
             <LoadingButton
               loading={isLoading}
-              onClick={handleSend}
+              onClick={()=>{handleSend()}}
               noinput = {!inputText.trim() || !currentChatId}
               disabled={isLoading || !inputText.trim() || !currentChatId}>
                 Submit

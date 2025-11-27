@@ -307,6 +307,7 @@ def send_message(chat_id : str):
 
         # 4. Return the bot's response to the frontend
         return jsonify({
+            'user_message_id' : user_message_id,
             'id': bot_message_id, # Return the ID of the bot's message just inserted
             'sender': 'bot',
             'content': bot_response,

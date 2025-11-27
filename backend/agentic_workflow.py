@@ -89,13 +89,16 @@ class AgenticWorkflow:
             "Final Answer:"
         )
         final_answer = self.generator.generate(synthesis_prompt)
-        # Post-process to remove potential prefixes like "The final answer is..." ::TODO
         # A simple heuristic might be to take the last non-empty line.
         lines = final_answer.strip().split('\n')
         for line in reversed(lines):
             if line.strip():
                 return line.strip()
-        return final_answer.strip() # Fallback if no lines match heuristic
+        final_answer = final_answer.strip()
+        # Post-process to remove potential prefixes like "The final answer is..."
+        if final_answer.startswith("Final Answer:"):
+            final_answer = final_answer[len("Final Answer:"):]
+        return final_answer
 
 
     def run(self, question: str) -> Tuple[str, List[Dict[str, Any]]]:
@@ -121,7 +124,7 @@ class AgenticWorkflow:
 
         steps_log.append({
             "step": step_cnt,
-            "description": f"**Initial Analysis**: Question is **{'multi-hop' if is_multi_hop else 'single-hop'}**. Pattern detected: `{multi_hop_pattern or 'None'}`.",
+            "description": f"Initial Analysis: Question is {'multi-hop' if is_multi_hop else 'single-hop'}. Pattern detected: `{multi_hop_pattern or 'None'}`.",
             "type" : "identify",
             "query": question,
             "result": None
@@ -133,7 +136,7 @@ class AgenticWorkflow:
             sub_questions = self.decompose_query(question)
             steps_log.append({
                 "step": step_cnt,
-                "description": f"**Query decomposition**: The question was broken down into {len(sub_questions)} sub-questions.",
+                "description": f"Query decomposition: The question was broken down into {len(sub_questions)} sub-questions.",
                 "type" : "decomposition",
                 "sub_questions": sub_questions,
                 "result": None
@@ -144,7 +147,7 @@ class AgenticWorkflow:
                 is_multi_hop = False
                 steps_log.append({
                     "step": step_cnt,
-                    "description": "**Fallback**: Decomposition yielded less than 2 sub-questions, falling back to single-hop processing.",
+                    "description": "Decomposition yielded less than 2 sub-questions, falling back to single-hop processing.",
                     "type" : "fallback",
                     "result": None
                 })
@@ -171,7 +174,7 @@ class AgenticWorkflow:
 
                 steps_log.append({
                     "step": step_cnt,
-                    "description": f"Generated Answer for Sub-question {i+1} : *{sub_q}*",
+                    "description": f"Generated Answer for Sub-question {i+1}",
                     "type" : "multi_hop_sub_generation",
                     "query": sub_q,
                     "result": sub_answer
@@ -182,7 +185,7 @@ class AgenticWorkflow:
             final_answer = self.synthesize_answer(original_question, sub_answers)
             steps_log.append({
                 "step": step_cnt,
-                "description": "**Synthesis**: Final answer generated from sub-answers.",
+                "description": "Synthesis: Final answer generated from sub-answers.",
                 "type" : "multi_hop_synthesize_answer",
                 "result": final_answer
             })
