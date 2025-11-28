@@ -4,7 +4,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 
 import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel'; // Import ChatPanel
-import { SUPPORT_MODELS, API_PREFIX } from './config'
+import InitPage from './InitPage'
+import { BackendStatus } from './InitPage'
+import { SUPPORT_MODELS, API_PREFIX, DEFAULT_MODEL } from './config'
 
 // Define types for our data structures
 interface ChatSession {
@@ -13,13 +15,18 @@ interface ChatSession {
   updated_at: string; // ISO string format
 }
 
+
 function ChatPage() {
+  const DefaultBackendStatus = { ok : true, storage : "?", cache : "?", logger : "?", db : "?", ready : true }
+  const NetworkFailuireBackendStatus = { ok : false, storage : "?", cache : "?", logger : "?", db : "?", ready : false }
+  const [backendStatus, SetBackendStatus] = useState<BackendStatus>(DefaultBackendStatus);
   const { chatId } = useParams();
   const navigate = useNavigate()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [currentModel, setCurrentModel] = useState("Qwen/Qwen2.5-0.5B-Instruct")
+  const [currentModel, setCurrentModel] = useState(DEFAULT_MODEL)
   const [currentChatId, setCurrentChatId] = useState<string | null>(chatId === undefined ? null : chatId); // Track the active chat
   const [availableChats, setAvailableChats] = useState<ChatSession[]>([]); // Store chat history list
+
 
   // Fetch chat history list on app load or when needed
   useEffect(() => {
@@ -37,6 +44,7 @@ function ChatPage() {
             }
         } catch (error) {
             console.error("Failed to fetch chat history:", error);
+            SetBackendStatus(NetworkFailuireBackendStatus)
             setAvailableChats([]);
         }
     };
@@ -89,6 +97,10 @@ function ChatPage() {
     setCurrentModel(value);
     console.log('Selected Model:', value);
   };
+
+  if (!backendStatus.ok || !backendStatus.ready) {
+    return <InitPage/>
+  }
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">

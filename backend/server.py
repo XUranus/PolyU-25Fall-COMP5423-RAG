@@ -11,6 +11,7 @@ from datetime import datetime
 import logging
 import os
 import traceback
+import threading
 
 def setup_logger(name, log_file, level=logging.INFO):
     logger = logging.getLogger(name)
@@ -34,7 +35,6 @@ def setup_logger(name, log_file, level=logging.INFO):
 
     # logger.addHandler(console_handler)
     logger.addHandler(file_handler)
-
     return logger
 
 
@@ -59,19 +59,39 @@ logger.info(f"Using address: {RAG42_BACKEND_HOST}:{RAG42_BACKEND_PORT}")
 logger.info(f"Using database: {DATABASE_PATH}")
 logger.info(f"Using logger: {LOGGER_PATH}")
 
-# RAG modules
-logger.info("import RAG modules...")
-now = time.time()
-from rag_pipeline import RAGPipeline
-from hybrid_retriever import HybridRetriever
-logger.info(f"RAG modules loaded. ({(time.time() - now):.2f} seconds)")
 
-logger.info("Initialize RAG modules...")
-now = time.time()
-retriever = HybridRetriever(collection_path="izhx/COMP5423-25Fall-HQ-small")
-rag_pipeline = RAGPipeline(retriever=retriever)
-rag_pipeline.init_generator(model_name=DEFAULT_MODEL)
-logger.info(f"RAG modules initialized. ({(time.time() - now):.2f} seconds)")
+retriever = None
+rag_pipeline = None
+RAG_Initialized = False
+init_error = None
+init_lock = threading.Lock()  # Thread-safe lock for initialization
+
+# Initialize RAG modules
+def initialize_rag_modules():
+    """Function to initialize RAG modules in background thread"""
+    global retriever, rag_pipeline, RAG_Initialized, init_error
+
+    with init_lock:  # Ensure only one initialization happens
+        if RAG_Initialized:
+            return
+        try:
+            logger.info("import RAG modules...")
+            now = time.time()
+            from rag_pipeline import RAGPipeline
+            from hybrid_retriever import HybridRetriever
+            logger.info(f"RAG modules loaded. ({(time.time() - now):.2f} seconds)")
+
+            logger.info("Initialize RAG modules...")
+            now = time.time()
+            retriever = HybridRetriever(collection_path="izhx/COMP5423-25Fall-HQ-small")
+            rag_pipeline = RAGPipeline(retriever=retriever)
+            rag_pipeline.init_generator(model_name=DEFAULT_MODEL)
+            RAG_Initialized = True
+            logger.info(f"RAG modules initialized. ({(time.time() - now):.2f} seconds)")
+        except Exception as e:
+            logger.error(f"Error init rag modules: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({'error': 'Failed to init rag modules'}), 500
 
 
 logger.info("Starting Flask app...")
@@ -79,9 +99,7 @@ app = Flask(__name__)
 CORS(app)
 
 
-
-# --- Helper Functions ---
-
+# --- Database Helper Functions ---
 def get_db_connection():
     """Establishes a connection to the SQLite database."""
     conn = sqlite3.connect(DATABASE_PATH)
@@ -104,9 +122,12 @@ def init_db():
 @app.route('/api/health')
 def api_health():
     return jsonify({
-        "status": "ok",
-        "service": "flask-backend",
-        "storage_dir": RAG42_STORAGE_DIR
+        "ok": True,
+        "storage" : RAG42_STORAGE_DIR,
+        "cache" : RAG42_CACHE_DIR,
+        "logger" : LOGGER_PATH,
+        "db" : DATABASE_PATH,
+        "ready" : RAG_Initialized,
     })
 
 
@@ -220,6 +241,12 @@ def get_messages(chat_id : str):
     """
     try:
         conn = get_db_connection()
+        # validate the session
+        session_check = conn.execute('SELECT id FROM chat_sessions WHERE id = ?', (chat_id,)).fetchone()
+        if not session_check:
+            conn.close()
+            return jsonify({'error': 'Chat session not found'}), 404
+        
         messages = conn.execute('''
             SELECT id, sender, content, timestamp, thinking_process
             FROM messages
@@ -243,6 +270,8 @@ def send_message(chat_id : str):
     stores both messages, and returns the bot's response.
     Expects JSON: { "message": "user's query" }
     """
+    if not RAG_Initialized:
+        return jsonify({'error': 'RAG module not initialized'}), 500
     try:
         user_data = request.get_json()
         user_message = user_data.get('message', '').strip()
@@ -334,5 +363,8 @@ def send_message(chat_id : str):
 if __name__ == '__main__':
     # Initialize the database when the script is run directly
     init_db()
+    # Initialize RAG module asynchronizely
+    init_thread = threading.Thread(target=initialize_rag_modules, daemon=True)
+    init_thread.start()
     # Run the Flask app
     app.run(debug=True, host=RAG42_BACKEND_HOST, port=int(RAG42_BACKEND_PORT), use_reloader=False)

@@ -1,5 +1,6 @@
 // src/components/ChatPanel.tsx
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import LoadingButton from './LoadingButton';
 import ThinkingPanel from './ThinkingPanel'
@@ -20,7 +21,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false); // To show a loading state while waiting for bot response
   const messagesEndRef = useRef<null | HTMLDivElement>(null); // For auto-scrolling
-
+  const navigate = useNavigate()
 
   // delete a message
   const handleDeleteMessageClick = async (messageId: string, e: React.MouseEvent) => {
@@ -48,6 +49,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
             try {
                 const response = await fetch(`${API_PREFIX}/api/chat/${currentChatId}/messages`);
                 if (!response.ok) {
+                    window.location.href = "/";
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
@@ -64,8 +66,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ currentChatId, currentModel }) =>
                   id: "FAKEID-MESSAGE-FAILED" + Date.now(),
                   sender: 'bot',
                   timestamp : new Date().toLocaleString('sv-SE', {timeZone: 'Asia/Shanghai'}),
-                  content: "Whops! There seems to be some problems with network, please try again latter." 
+                  content: "❌ Whoops! There seems to be some network issue, please try again later." 
                 }]);
+                
             }
         };
         fetchMessages();
