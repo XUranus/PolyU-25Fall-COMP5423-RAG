@@ -1,7 +1,18 @@
 #!/bin/bash
 # This script builds the Docker containers for the B-S Architecture RAG42 project.
 
-echo "Building The RAG42 Project..."
+# Show the configurations in .env
+echo "===== Building The RAG42 Project ======"
+export $(grep -v '^#' .env | xargs)
+echo "RAG42_FRONTEND_PORT = $RAG42_FRONTEND_PORT"
+echo "RAG42_BACKEND_PORT = $RAG42_BACKEND_PORT"
+echo "RAG42_BACKEND_HOST = $RAG42_BACKEND_HOST"
+echo "RAG42_STORAGE_DIR = $RAG42_STORAGE_DIR"
+echo "RAG42_CACHE_DIR = $RAG42_CACHE_DIR"
+echo "RAG42_OPENAI_API_KEY = $RAG42_OPENAI_API_KEY"
+echo "RAG42_OPENAI_API_URL = $RAG42_OPENAI_API_URL"
+echo "======================================="
+
 
 # Create necessary directories
 mkdir -p volumes/storage volumes/cache

@@ -9,22 +9,72 @@ In this project, we will develop and evaluate an RAG system based on a sampled s
 
 ![](screenshot.png)
 
-## Build & Start
-To build a docker image, copy `.env.example` to `.env` and configure it with your preferences.
-
+## Build & Run
+Copy `.env.example` to `.env` and configure it with your preferences. 
 Applicable environments in `.env` are like:
 ```bash
 RAG42_FRONTEND_PORT=3000
 RAG42_BACKEND_PORT=5000
 RAG42_BACKEND_HOST=0.0.0.0
-RAG42_STORAGE_DIR=./volumes/storage
-RAG42_CACHE_DIR=./cache
-RAG42_OPENAI_API_KEY=sk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-RAG42_OPENAI_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+RAG42_STORAGE_DIR=./volumes/storage # for database and logs storage
+RAG42_CACHE_DIR=./cache # Spare at least 1GB for cache storage
+RAG42_OPENAI_API_KEY=sk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx # OpenAI API Key
+RAG42_OPENAI_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1 # OpenAI API Sever
 ```
 
+### Using Docker
 Start to build images and to run:
 ```bash
-source .env && sh build.sh
-sh start.sh
+sudo sh build.sh
+sudo docker-compose up
 ```
+
+### Build And Run Manually
+1. Prepare backend server environment
+    ```bash
+    cd backend
+    conda env create -f environment.yml
+    conda activate COMP5423-RAG42
+    pip install -r requirements.txt
+    ```
+    You can download the cached index file to the `$RAG42_CACHE_DIR` to speed up the bootstrap process. Otherwise you may waste hours on indexing:
+    ```bash
+    cd $RAG42_CACHE_DIR
+    wget https://github.com/XUranus/PolyU-25Fall-COMP5423-RAG/releases/download/BM25Cache/cache.zip
+    unzip cache.zip
+    ```
+    Then start the flask server:
+    ```bash
+    python server.py # flask server run on localhost:5000
+    ```
+
+2. Prepare the frontend.
+    ```bash
+    cd frontend
+    npm install
+    npm start # react server run on localhost:3000
+    ```
+
+## FAQ
+### What LLM models are used in this project?
+ - Qwen2.5-0.5B-Instruct
+ - Qwen2.5-1.5B-Instruct
+ - Qwen2.5-3B-Instruct
+ - Qwen2.5-7B-Instruct
+
+You can configure it in `frontend/config.ts` to try more models. This models are used via OpenAI AI. You need to configure `RAG42_OPENAI_API_KEY` and `RAG42_OPENAI_API_PREFIX` corresponding to your LLM service provider.
+
+If you don't have a key, you can also try `Qwen2.5-0.5B-Instruct` locally(via downloading this opensource model from HuggingFace). We support both local HuggingFaceGenerator and OpenAIGenerator to make sure this project can run on laptop.
+
+### How many time need to start the project.
+If you want to build it using docker from scratch, you many need 1 hour or more. The image may take about 20GB.
+
+When the server start for the first time, it need to download the HotpotQA dataset and `Qwen2.5-0.5B-Instruct` model from HuggingFace. It will take about 10 minutes and require additional 1GB.
+
+If you didn't download the cached index file, the bootstrap process of server may take over 3 hours to do the BM25 indexing.
+
+The project is tested on the *Xiaomi Laptop 2016* with:
+ - 16GB RAM
+ - NVDIA MX150 GPU
+ - Intel i7
+ - OS: Arch Linux + KDE
