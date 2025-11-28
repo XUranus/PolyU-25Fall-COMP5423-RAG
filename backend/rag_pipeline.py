@@ -43,7 +43,7 @@ class RAGPipeline:
             model_name (str) : The huggingface model or the openai API model
         """
         if model_name in self.generator_map:
-            logger.warning(f"{model_name} already been loaded, skip")
+            logger.debug(f"{model_name} already been loaded, skip")
             return self.generator_map[model_name]
         logger.info("start init new generator: {model_name}")
         if model_name == "Qwen/Qwen2.5-0.5B-Instruct":

@@ -27,7 +27,7 @@ class HybridRetriever:
         sparse_model_name: str = "bm25s", # Not used directly, kept for potential future use
         dense_model_name: str = "BAAI/bge-small-en-v1.5",
         use_cache: bool = True, # If you save FAISS index / BM25 index
-        cache_dir: str = "./cache" # Directory to save/load indices
+        cache_dir: str = os.getenv('RAG42_CACHE_DIR', './cache') # Directory to save/load indices
     ):
         """
         Initializes the Hybrid Retriever.
