@@ -48,17 +48,19 @@ class AgenticWorkflow:
         
         prompt = (
             "Answer the question using ONLY the information in the evidence below. "
-            "If the evidence does not contain enough information to answer the question, respond with exactly: 'I don't know.'\n\n"
+            "If the evidence does not contain enough information to answer the question, respond: 'I don't know.'\n\n"
             
             "Evidence:\n"
             f"{evidence_snippets}\n\n"
             
             f"Question: {query}\n\n"
             
-            "Answer (be concise and factual):"
+            "Answer:"
         )
         logger.debug(f"Generated prompt\n: {prompt}")
         response = self.generator.generate(prompt)
+        if response.startswith("Answer:"):
+            response = response[len("Answer:"):]
         return response
     
 

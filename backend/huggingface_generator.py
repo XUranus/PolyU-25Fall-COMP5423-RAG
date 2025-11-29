@@ -47,7 +47,10 @@ class HuggingfaceGenerator:
         Returns:
             str: The answer
         """
-        messages = [{"role": "user", "content": prompt}]
+        messages = [
+            { "role" : "system", "content" : "You are a helpful assistant. Answer strictly using the provided context in few words."},
+            { "role": "user", "content": prompt }
+        ]
         text = self.tokenizer.apply_chat_template(
             messages,
             tokenize=False,

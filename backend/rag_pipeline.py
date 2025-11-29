@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Tuple, Optional
 import logging
 
 from agentic_workflow import AgenticWorkflow
+from singlehop_workflow import SingleHopWorkflow
 from hybrid_retriever import HybridRetriever
 from huggingface_generator import HuggingfaceGenerator
 from openai_generator import OpenAIGenerator
@@ -23,7 +24,7 @@ class RAGPipeline:
     along with supporting information like retrieved documents and thinking process.
     Designed to support single-turn and future multi-turn interactions.
     """
-    def __init__(self, retriever: HybridRetriever):
+    def __init__(self, retriever: HybridRetriever, enable_agentic_workflow : bool = True):
         """
         Initializes the RAG Pipeline.
 
@@ -32,6 +33,7 @@ class RAGPipeline:
             generator (QwenGenerator): The generation module instance.
         """
         self.retriever = retriever
+        self.enable_agentic_workflow = enable_agentic_workflow
         self.generator_map = {} # generator map
 
 
@@ -58,8 +60,6 @@ class RAGPipeline:
         self,
         query: str,
         session_history: Optional[List[Dict[str, str]]] = None,
-        top_k: int = 10,
-        max_doc_chars: int = 2000,
         model_name : str = "Qwen/Qwen2.5-0.5B-Instruct"
     ) -> Dict[str, Any]:
         """
@@ -68,8 +68,6 @@ class RAGPipeline:
         Args:
             query (str): The user's query.
             session_history (Optional[List[Dict[str, str]]]): For future multi-turn support.
-            top_k (int): Number of documents to retrieve.
-            max_doc_chars (int): Maximum characters per retrieved document snippet.
 
         Returns:
             Dict[str, Any]: A dictionary containing the answer, retrieved docs, and thinking process.
@@ -92,9 +90,14 @@ class RAGPipeline:
             logger.debug("No session history provided; using original query.")
 
         # --- Step 2: Generate Answer Via Agentic Workflow ---
-        logger.debug("Generating answer with Agentic Workflow...")
-        agentic_workflow = AgenticWorkflow(self.retriever, generator, need_reformulate, session_history)
-        final_answer, intermediate_steps = agentic_workflow.run(query)
+        workflow = None
+        if self.enable_agentic_workflow:
+            logger.debug("Generating answer with Agentic Workflow...")
+            workflow = AgenticWorkflow(self.retriever, generator, need_reformulate, session_history)
+        else:
+            workflow = SingleHopWorkflow(self.retriever, generator)
+        
+        final_answer, intermediate_steps = workflow.run(query)
 
         for step in intermediate_steps:
             thinking_process_item = {}

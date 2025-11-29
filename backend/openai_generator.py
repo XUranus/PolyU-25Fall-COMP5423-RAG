@@ -53,7 +53,10 @@ class OpenAIGenerator:
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[
+                    {"role" : "user", "content": prompt},
+                    {"role" : "system", "content" : "You are a helpful assistant. Answer strictly using the provided context in few words."},
+                ]
                 # stream=False is the default
             )
             # Extract the full reply
