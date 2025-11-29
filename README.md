@@ -5,7 +5,7 @@
 This project aims to develop a **Retrieval-Augmented Generation (RAG)** system using a subset of the HotpotQA dataset, which contains multi-hop, Wikipedia-based questions along with their corresponding answers. The objective is to build an end-to-end question answering system capable of handling complex queries that require reasoning across multiple documents. By integrating a retrieval module with a generative large language model, the system will improve both the factual accuracy and explainability of answers through evidencegrounded response generation. The HotpotQA dataset will serve as the training and evaluation foundation, with a focus on understanding the application of RAG techniques to multi-hop, explainable question-answering tasks. The project will optimize both retrieval and generation components to enhance overall system performance for real-world RAG applications.
 
 ## Project Resource
-In this project, we will develop and evaluate an RAG system based on a sampled subset of HotpotQA. The Train and Validation splits with relevant documents could be used in developing and self evaluation, while the Test split is for the final performanceevaluation by TAs. HQ-small is released at [https://huggingface.co/datasets/izhx/COMP5423-25Fall-HQ-small](https://huggingface.co/datasets/izhx/COMP5423-25Fall-HQ-small)
+In this project, we will develop and evaluate an RAG system based on a sampled subset of `HotpotQA`. The `Train` and `Validation` splits with relevant documents could be used in developing and self evaluation. The sampled `HQ-small` is released at [https://huggingface.co/datasets/izhx/COMP5423-25Fall-HQ-small](https://huggingface.co/datasets/izhx/COMP5423-25Fall-HQ-small)
 
 ![](screenshot.png)
 
@@ -21,6 +21,7 @@ RAG42_CACHE_DIR=./cache # Spare at least 1GB for cache storage
 RAG42_OPENAI_API_KEY=sk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx # OpenAI API Key
 RAG42_OPENAI_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1 # OpenAI API Sever
 ```
+Then run `export $(grep -v '^#' .env | xargs)` to export the variables.
 
 ### Using Docker
 Start to build images and to run:
@@ -66,15 +67,15 @@ You can configure it in `frontend/config.ts` to try more models. This models are
 
 If you don't have a key, you can also try `Qwen2.5-0.5B-Instruct` locally(via downloading this opensource model from HuggingFace). We support both local HuggingFaceGenerator and OpenAIGenerator to make sure this project can run on laptop.
 
-### How many time need to start the project.
-If you want to build it using docker from scratch, you many need 1 hour or more. The image may take about 20GB.
+### How much time/hardware resources are need to start the project.
+If you want to build it using docker from scratch, you many need 1 hour or more. The images should take space for about 20GB.
 
-When the server start for the first time, it need to download the HotpotQA dataset and `Qwen2.5-0.5B-Instruct` model from HuggingFace. It will take about 10 minutes and require additional 1GB.
+When the server start for the first time, it need to download the HotpotQA dataset and `Qwen2.5-0.5B-Instruct` model from HuggingFace. It will take about 10 minutes and requires additional 1GB.
 
 If you didn't download the cached index file, the bootstrap process of server may take over 3 hours to do the BM25 indexing.
 
-The project is tested on the *Xiaomi Laptop 2016* with:
+The project is developed and tested on the *Xiaomi Laptop 2016* with:
  - 16GB RAM
- - NVDIA MX150 GPU
- - Intel i7
+ - NVDIA GeForce MX150 GPU
+ - Intel i7-8550
  - OS: Arch Linux + KDE
