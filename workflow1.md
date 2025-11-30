@@ -22,7 +22,7 @@ graph TD
         Retriever([HybridRetriever])
         Generator{Generator Selector}
         HFG[HuggingfaceGenerator<br/>e.g., Qwen2.5-0.5B-Instruct]
-        OAI[OpenAIGenerator<br/>e.g., qwen-turbo]
+        OAI[OpenAIGenerator<br/>e.g., Qwen2.5-7B-Instruct]
     end
 
     
@@ -53,7 +53,7 @@ graph TD
     Generator --> HFG
     Generator --> OAI
     HFG -->|Local Inference| QwenModel[(Qwen2.5-*B-Instruct)]
-    OAI -->|API Call| QwenAPI[(Qwen API<br/>e.g., qwen-turbo)]
+    OAI -->|API Call| QwenAPI[(Qwen API<br/>e.g., Qwen2.5-7B-Instruct)]
     Workflow -->|Final answer + steps| Pipeline
     Pipeline -->|Return JSON| API
     API -->|WebSocket/HTTP Response| Display

@@ -7,7 +7,7 @@ It's only used as a baseline method for test
 """
 
 from typing import List, Dict, Any, Tuple, Optional
-from hybrid_retriever import HybridRetriever # Import our retriever class
+from retriever_base import BaseRetriever
 import logging
 import re
 
@@ -18,7 +18,7 @@ logger = logging.getLogger('RAG42')
 
 class SingleHopWorkflow:
     def __init__(self,
-                 retriever: HybridRetriever,
+                 retriever: BaseRetriever,
                  generator):
         self.retriever = retriever
         self.generator = generator
@@ -42,9 +42,15 @@ class SingleHopWorkflow:
         )
         
         prompt = (
-            "Question:\n"
-            f"{query}\n\n"
-            f"nContext: {evidence_snippets}\n\n"
+            "Answer the question using ONLY the information in the evidence below. "
+            "If the evidence does not contain enough information to answer the question, respond: 'I don't know.'\n\n"
+            
+            "Evidence:\n"
+            f"{evidence_snippets}\n\n"
+            
+            f"Question: {query}\n\n"
+            
+            "Answer:"
         )
 
         logger.debug(f"Generated prompt\n: {prompt}")

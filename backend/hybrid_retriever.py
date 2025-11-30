@@ -72,13 +72,16 @@ class HybridRetriever(BaseRetriever):
         bm25_results = self.sparse_retriever.retrieve(query, k * 2)  # Retrieve more to merge
         bge_results = self.dense_retriever.retrieve(query, k * 2)
 
-        # Extract scores and create score maps
-        bm25_norm = self._normalize_scores([score for _, _, score in bm25_results])
-        bge_norm = self._normalize_scores([score for _, _, score in bge_results])
+        # Normalize scores
+        bm25_scores = [score for _, _, score in bm25_results]
+        bge_scores = [score for _, _, score in bge_results]
 
-        # Create score maps using doc_ids
-        bm25_map = {doc_id: score for doc_id, _, score in zip([doc_id for doc_id, _, _ in bm25_results], bm25_norm)}
-        bge_map = {doc_id: score for doc_id, _, score in zip([doc_id for doc_id, _, _ in bge_results], bge_norm)}
+        bm25_norm = self._normalize_scores(bm25_scores)
+        bge_norm = self._normalize_scores(bge_scores)
+
+        # Create score maps directly
+        bm25_map = {doc_id: norm_score for (doc_id, _, _), norm_score in zip(bm25_results, bm25_norm)}
+        bge_map = {doc_id: norm_score for (doc_id, _, _), norm_score in zip(bge_results, bge_norm)}
 
         # Fusion: Weighted sum (alpha for sparse, 1-alpha for dense)
         fused_scores = {}

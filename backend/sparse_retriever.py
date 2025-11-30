@@ -9,6 +9,7 @@ from typing import List, Tuple
 import bm25s
 import os
 import logging
+import re
 from retriever_base import BaseRetriever
 
 logger = logging.getLogger('RAG42')
@@ -40,27 +41,32 @@ class SparseRetriever(BaseRetriever):
         self._build_index()
 
 
-    def _build_index(self):
-        """Builds the BM25 index."""
+    def _build_index(self):          
         cache_path = os.path.join(self.cache_dir, f"bm25_index_{self.sparse_model_name.replace('/', '_')}.npz")
         if self.use_cache and os.path.exists(cache_path):
             logger.info(f"Loading cached BM25 index from {cache_path}...")
-            # Load the index using bm25s
-            self.bm25_retriever = bm25s.BM25.load(cache_path, load_corpus=False) # Don't load corpus again, we have self.doc_texts
+            self.bm25_retriever = bm25s.BM25.load(cache_path, load_corpus=False)
             logger.info("Cached BM25 index loaded.")
             return
+        
+        # No cache, Start to build index
+        processed_docs = []
+        for doc in self.doc_texts:
+            # Basic cleaning that matches query preprocessing
+            doc = re.sub(r'[^\w\s]', ' ', doc.lower())
+            processed_docs.append(doc)
 
         logger.info("Building BM25 (sparse) index...")
-        # Tokenize - REMOVED 'stem=True' as it's not a valid argument for bm25s.tokenize
-        corpus_tokens = bm25s.tokenize(self.doc_texts, stopwords="en") # Removed stem=True
-        # Build index
-        self.bm25_retriever = bm25s.BM25()
+        corpus_tokens = bm25s.tokenize(processed_docs, stopwords="en")
+        
+        # Tune BM25 hyperparameters - try different values
+        self.bm25_retriever = bm25s.BM25(k1=1.5, b=0.75)  # Default is k1=1.5, b=0.75
+        # Common good ranges: k1=1.2-2.0, b=0.5-0.8
         self.bm25_retriever.index(corpus_tokens)
         
-        # Save the index if caching is enabled
         if self.use_cache:
-             logger.info(f"Saving BM25 index to {cache_path}...")
-             self.bm25_retriever.save(cache_path)
+            logger.info(f"Saving BM25 index to {cache_path}...")
+            self.bm25_retriever.save(cache_path)
         logger.info("BM25 index built.")
 
 
@@ -75,17 +81,26 @@ class SparseRetriever(BaseRetriever):
         Returns:
             List of tuples (doc_id, doc_text, score).
         """
+        # Preprocess query consistently with documents
+        query = re.sub(r'[^\w\s]', ' ', query.lower())
         # Tokenize query - REMOVED 'stem=True'
-        query_tokens = bm25s.tokenize([query], stopwords="en") # Removed stem=True
+        query_tokens = bm25s.tokenize([query], stopwords="en")
         scores, indices = self.bm25_retriever.retrieve(query_tokens, k=k)
         
+        # Use raw scores directly - don't normalize per query
+        raw_scores = [float(scores[0][i]) for i in range(len(indices[0]))]
         results = []
         for i in range(len(indices[0])):
             doc_idx = int(indices[0][i])
             doc_id = self.doc_ids[doc_idx]
             doc_text = self.doc_texts[doc_idx]
-            score = float(scores[0][i])
-            results.append((doc_id, doc_text, score))
-        
-        logger.debug(f"Retrieved {len(results)} documents for query: {query}...")
+            results.append((doc_id, doc_text, raw_scores[i]))  # Keep raw scores
         return results
+    
+    
+    def _normalize_scores(self, scores: List[float]) -> List[float]:
+        """Apply sigmoid normalization to preserve relative ordering"""
+        scores_array = np.array(scores)
+        # Sigmoid transformation preserves relative ordering better
+        normalized = 1 / (1 + np.exp(-scores_array))
+        return normalized.tolist()

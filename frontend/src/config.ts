@@ -12,11 +12,12 @@ export const SUPPORT_MODELS : SupportModelConfigItem[] = [
         local : true,
     },
     // Remote Aliyun Models via OpenAI API
+    // {
+    //     name : "Aliyun/Qwen2.5-0.5B-Instruct",
+    //     value : "qwen2.5-0.5b-instruct",
+    //     local : false,
+    // }, 
     {
-        name : "Aliyun/Qwen2.5-0.5B-Instruct",
-        value : "qwen2.5-0.5b-instruct",
-        local : false,
-    }, {
         name : "Aliyun/Qwen2.5-1.5B-Instruct",
         value : "qwen2.5-1.5b-instruct",
         local : false,

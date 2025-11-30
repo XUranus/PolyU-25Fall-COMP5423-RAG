@@ -8,7 +8,8 @@ support multi-turn interactions and detailed thought processes.
 """
 
 from typing import List, Dict, Any, Tuple, Optional
-from hybrid_retriever import HybridRetriever # Import our retriever class
+from retriever_base import BaseRetriever
+from decomposition_checker import DecompositionChecker
 import logging
 import re
 
@@ -19,7 +20,7 @@ logger = logging.getLogger('RAG42')
 
 class AgenticWorkflow:
     def __init__(self,
-                 retriever: HybridRetriever,
+                 retriever: BaseRetriever,
                  generator,
                  need_reformulate : bool = False,
                  session_history : List = []):
@@ -27,6 +28,7 @@ class AgenticWorkflow:
         self.generator = generator
         self.need_reformulate = need_reformulate
         self.session_history = session_history
+        self.decomp_checker = DecompositionChecker()
         self.MAX_DECOMPOSITION_STEPS = 10
 
     def answer_from_docs(self, query: str, retrieved_docs: List[str], max_doc_chars: int = 2000) -> str:
@@ -121,61 +123,18 @@ class AgenticWorkflow:
             return query
 
 
-
-    def identify_multi_hop_pattern(self, question: str) -> Optional[str]:
-        """
-        Heuristically identifies if a question might be multi-hop based on keywords/phrases.
-        This is a simple rule-based check. More sophisticated methods could use NER/RE.
-        """
-        question_lower = question.lower().strip()
-
-        # Enhanced multi-hop indicators with more comprehensive patterns
-        multi_hop_indicators = [
-            # Temporal relationships
-            r'\bwhen.*(?:won|received|got|achieved|was awarded)\b',
-            r'\bwhen.*was.*born\b',
-            r'\b(?:before|after|during|following).*when\b',
-            # Causal relationships
-            r'\b(?:what|who|which).*led to\b',
-            r'\b(?:what|who|which).*caused\b',
-            r'\b(?:result of|consequence of|due to)\b',
-            # Comparative/relational
-            r'\b(?:who|what|which).*(?:after|before|instead of|rather than)\b',
-            r'\b(?:first.*then|initially.*subsequently|earlier.*later)\b',
-            # Entity relationship chains
-            r'\b(?:who|what).*works for.*who\b',
-            r'\b(?:where|which).*located in.*where\b',
-            r'\b(?:what|which).*created by.*who\b',
-            # Multi-entity references
-            r'\b(?:both.*and|either.*or|neither.*nor).*\b(?:who|what|where)\b',
-        ]
-        
-        for pattern in multi_hop_indicators:
-            if re.search(pattern, question_lower):
-                return pattern
-        return None
-
-
     def decompose_query(self, question: str) -> List[str]:
         """
         Decomposes a multi-hop question into sub-questions using the LLM.
         """
-        few_shot = (
-            "Example:\n"
-            "Complex Question: Who was the director of the movie that won Best Picture at the 2020 Oscars?\n"
-            "Sub-questions:\n"
-            "1. Which movie won Best Picture at the 2020 Oscars?\n"
-            "2. Who directed [answer from 1]?\n\n"
-        )
-
         decomposition_prompt = (
-            "You are an expert at breaking down complex questions. Decompose the following question into a sequence of simple, answerable sub-questions. "
-            "Each sub-question must build logically on the previous one and use concrete entities. Do NOT answer—just list sub-questions.\n\n"
+            "Decompose the following question into a sequence of simple, answerable sub-questions only if it is complex. "
+            "If the question is simple, just return the original question."
+            "Each sub-question must build logically on the previous one and use concrete entities. Do NOT answer—just list sub-questions line by line.\n\n"
             
-            f"{few_shot}"
+            #f"{few_shot}"
             f"Complex Question: {question}\n"
             "Sub-questions:\n"
-            "1."
         )
         
         logger.debug(f'decompose_query prompt :\n {decomposition_prompt}')
@@ -183,24 +142,8 @@ class AgenticWorkflow:
         logger.debug(f'decomposition_response: \n {decomposition_response}')
 
         # Enhanced parsing with multiple formats
-        sub_questions = []
         lines = decomposition_response.split('\n')
-        
-        for line in lines:
-            line = line.strip()
-            # Match numbered lists (1., 2., etc.)
-            numbered_match = re.match(r'^\d+\.\s*(.+)', line)
-            if numbered_match:
-                sub_q = numbered_match.group(1).strip()
-                if sub_q and not sub_q.lower().startswith('provide up to') and not sub_q.startswith('<sub_questions>'):
-                    sub_questions.append(sub_q)
-            # Alternative format: "Sub-question 1:", "Sub-question 2:", etc.
-            elif ':' in line and ('sub-question' in line.lower() or 'sub question' in line.lower()):
-                match = re.match(r'^.*?:\s*(.+)', line.strip(), re.IGNORECASE)
-                if match:
-                    sub_q = match.group(1).strip()
-                    if sub_q:
-                        sub_questions.append(sub_q)
+        sub_questions = lines
 
         # Remove empty strings and limit to max steps
         sub_questions = [sq for sq in sub_questions if sq.strip()][:self.MAX_DECOMPOSITION_STEPS]
@@ -214,8 +157,9 @@ class AgenticWorkflow:
         """
         context_for_synthesis = "\n".join([f"Sub-answer {i+1}: {ans}" for i, ans in enumerate(sub_answers)])
         synthesis_prompt = (
-            "You are given a complex question and the verified answers to its sub-questions. "
-            "Combine ONLY the provided sub-answers to form a final, concise answer to the original question. "
+            "Answer the Original Question using only the provided sub-answers."
+            "Be concise, relevant, and do not add extra information."
+            "If the Original Question is simple, give a short direct answer."
             "Do NOT use external knowledge or speculate. If sub-answers are insufficient, say 'I don't know.'\n\n"
             
             f"Original Question: {question}\n\n"
@@ -265,13 +209,12 @@ class AgenticWorkflow:
                 question = new_query
 
         # 1. Identify if the question is multi-hop
-        multi_hop_pattern = self.identify_multi_hop_pattern(question)
-        is_multi_hop = multi_hop_pattern is not None
+        is_multi_hop = self.decomp_checker.identify_multi_hop_pattern(question)
         logger.debug(f'question = {question}, is_multi_hop = {is_multi_hop}')
 
         steps_log.append({
             "step": step_cnt,
-            "description": f"Initial Analysis: Question is {'multi-hop' if is_multi_hop else 'single-hop'}. Pattern detected: `{multi_hop_pattern or 'None'}`.",
+            "description": f"Initial Analysis: Question is {'multi-hop' if is_multi_hop else 'single-hop'}.",
             "type" : "identify",
             "query": question,
             "result": None

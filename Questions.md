@@ -19,6 +19,15 @@ Terry Southern
 
 ## QA 4:
 ### Q:
-Where was Barack Obama born?
-### A:
-What about his wife, where was she born?
+Who is Barack Obama?
+### Q:
+What about his wife? Where is she born?
+### Q:
+Barack Obama became president on January 20, 2009.
+
+
+
+## QA 4:
+### Q:
+The second place finisher of the 2011 Gran Premio Santander d'Italia drove for who when he won the 2009 FIA Formula One World Championship?
+

@@ -11,7 +11,7 @@ import logging
 
 from agentic_workflow import AgenticWorkflow
 from singlehop_workflow import SingleHopWorkflow
-from hybrid_retriever import HybridRetriever
+from retriever_base import BaseRetriever
 from huggingface_generator import HuggingfaceGenerator
 from openai_generator import OpenAIGenerator
 
@@ -24,12 +24,12 @@ class RAGPipeline:
     along with supporting information like retrieved documents and thinking process.
     Designed to support single-turn and future multi-turn interactions.
     """
-    def __init__(self, retriever: HybridRetriever, enable_agentic_workflow : bool = True):
+    def __init__(self, retriever: BaseRetriever, enable_agentic_workflow : bool = True):
         """
         Initializes the RAG Pipeline.
 
         Args:
-            retriever (HybridRetriever): The retrieval module instance.
+            retriever (BaseRetriever): The retrieval module instance.
             generator (QwenGenerator): The generation module instance.
         """
         self.retriever = retriever

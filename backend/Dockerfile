@@ -31,5 +31,8 @@ RUN pip install -r requirements.txt
 RUN echo "backend will use port: $RAG42_BACKEND_PORT"
 EXPOSE $RAG42_BACKEND_PORT
 
+# Download en_core_web_sm
+RUN python -m spacy download en_core_web_sm
+
 # Start the Flask application
 CMD ["conda", "run", "-n", "COMP5423-RAG42", "python", "server.py"]
