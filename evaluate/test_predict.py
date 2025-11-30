@@ -35,17 +35,10 @@ logger = setup_logger(APPNAME, LOGGER_PATH, level=logging.INFO)
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', "backend"))
 from rag_pipeline import RAGPipeline
-from hybrid_retriever import HybridRetriever
+from retriever_base import BaseRetriever
 
 MODEL_NAME = "qwen2.5-7b-instruct"
-
-my_retriever = HybridRetriever(
-    collection_path = "izhx/COMP5423-25Fall-HQ-small",
-    sparse_model_name = "bm25s",
-    dense_model_name = "BAAI/bge-small-en-v1.5", # "Qwen/Qwen3-Embedding-4B",
-    use_cache = True,
-    cache_dir = os.getenv('RAG42_CACHE_DIR', './cache'),
-)
+RETRIEVE_TYPE = "hybrid"
 
 def read_jsonl(file_path):
     data = list()
@@ -58,14 +51,31 @@ def read_jsonl(file_path):
 
 def main():
     parser = argparse.ArgumentParser(description='Evaluate retrieval results.')
-    parser.add_argument('--dataset', '-d', type=str, required=True, help='Path to the jsonl file test predict on.')
+    parser.add_argument('--dataset', '-d', type=str, required=True,
+            help='Path to the jsonl file test predict on.')
+    parser.add_argument(
+            '--generator', '-g', type=str, required=True,
+            help='LLM generator to use (qwen2.5-0.5b-instruct | qwen2.5-1.5b-instruct | qwen2.5-3b-instruct | qwen2.5-7b-instruct)')
+    parser.add_argument('--retriever', '-r', type=str, required=True,
+            help='Retriever to use (sparse | static_embedding | dense | hybrid).')
     args = parser.parse_args()
-    dataset_path = args.dataset
-    print(f'using dataset: {dataset_path}')
-    dataset = read_jsonl(dataset_path)
+
 
     RAG42_CACHE_DIR = os.getenv('RAG42_CACHE_DIR')
+    RETRIEVE_TYPE = args.retriever
+    MODEL_NAME = args.generator
+    dataset_path = args.dataset
+    dataset = read_jsonl(dataset_path)
+
+    print(f'Using Dataset: {dataset_path}')
+    print(f'Using LLM : {MODEL_NAME}')
+    print(f"Using Retriever : {RETRIEVE_TYPE}")
     print(f'RAG42_CACHE_DIR = {RAG42_CACHE_DIR}')
+
+    my_retriever = BaseRetriever.create_retriever(
+        collection_path="izhx/COMP5423-25Fall-HQ-small",
+        retriever_type = RETRIEVE_TYPE,
+    )
     rag = RAGPipeline(retriever=my_retriever, enable_agentic_workflow = True)
 
     def task(data):

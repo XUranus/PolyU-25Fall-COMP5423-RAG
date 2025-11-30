@@ -16,3 +16,9 @@ Grant Imahara
 Who was a part of the Paris postwar literary movement in the 1950s, Terry Southern or Winston Churchill?
 ### A:
 Terry Southern
+
+## QA 4:
+### Q:
+Where was Barack Obama born?
+### A:
+What about his wife, where was she born?

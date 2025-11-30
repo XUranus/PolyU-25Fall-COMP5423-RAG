@@ -51,7 +51,7 @@ LOGGER_PATH = os.path.join(RAG42_STORAGE_DIR, 'rag.log')
 
 # Logger
 APPNAME = "RAG42"
-logger = setup_logger(APPNAME, LOGGER_PATH, level=logging.INFO)
+logger = setup_logger(APPNAME, LOGGER_PATH, level=logging.DEBUG)
 logger.info("== RAG42 Server Starting ==")
 logger.info(f"Using storage directory: {RAG42_STORAGE_DIR}")
 logger.info(f"Using cache directory: {RAG42_CACHE_DIR}")
@@ -85,7 +85,7 @@ def initialize_rag_modules():
             now = time.time()
             retriever = HybridRetriever(collection_path="izhx/COMP5423-25Fall-HQ-small")
             rag_pipeline = RAGPipeline(retriever=retriever)
-            rag_pipeline.init_generator(model_name=DEFAULT_MODEL)
+            #rag_pipeline.init_generator(model_name=DEFAULT_MODEL)
             RAG_Initialized = True
             logger.info(f"RAG modules initialized. ({(time.time() - now):.2f} seconds)")
         except Exception as e:
