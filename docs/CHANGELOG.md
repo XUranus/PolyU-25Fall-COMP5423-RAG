@@ -1,5 +1,16 @@
 # Changelog
 
+## [Stage 4] - 2026-04-19
+
+### Code Quality & Consistency
+
+- **Changed `HybridRetriever` to `BaseRetriever` type hints**: Both `AgenticWorkflow` and `SingleHopWorkflow` now use `BaseRetriever` as the type hint for the retriever parameter, making them compatible with all retriever types (sparse, dense, hybrid, instruction, colbert) instead of being locked to `HybridRetriever` (`agentic_workflow.py`, `singlehop_workflow.py`)
+- **Included `result` field for all generation steps in thinking_process**: Previously only `multi_hop_sub_generation` steps included the `result` field. Now all steps that have a `result` key (including `single_hop_generation`, `multi_hop_synthesize_answer`) are included in the thinking process output, improving the UI's ability to display intermediate answers (`rag_pipeline.py`)
+
+### Evidence Truncation Improvement
+
+- **Replaced per-document character truncation with total character budget**: `answer_from_docs` now uses `max_total_chars=8000` (~2000 tokens) as a total evidence budget instead of `max_doc_chars=2000` per document. This prevents context overflow when there are many documents, and allocates more space to shorter docs while capping the total. Both `AgenticWorkflow` and `SingleHopWorkflow` use the same approach (`agentic_workflow.py`, `singlehop_workflow.py`)
+
 ## [Stage 3] - 2026-04-19
 
 ### Answer Verification & Multi-hop Retrieval

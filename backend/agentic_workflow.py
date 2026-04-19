@@ -8,7 +8,7 @@ support multi-turn interactions and detailed thought processes.
 """
 
 from typing import List, Dict, Any, Tuple, Optional
-from hybrid_retriever import HybridRetriever # Import our retriever class
+from retriever_base import BaseRetriever
 import logging
 import re
 
@@ -19,7 +19,7 @@ logger = logging.getLogger('RAG42')
 
 class AgenticWorkflow:
     def __init__(self,
-                 retriever: HybridRetriever,
+                 retriever: BaseRetriever,
                  generator,
                  need_reformulate : bool = False,
                  session_history : List = []):
@@ -29,23 +29,34 @@ class AgenticWorkflow:
         self.session_history = session_history
         self.MAX_DECOMPOSITION_STEPS = 10
 
-    def answer_from_docs(self, query: str, retrieved_docs: List[str], max_doc_chars: int = 2000, prior_answers: List[str] = None) -> str:
+    def answer_from_docs(self, query: str, retrieved_docs: List[str], max_total_chars: int = 8000, prior_answers: List[str] = None) -> str:
         """
         Builds the prompt string from the documents for the LLM.
         Generates an answer based on the query and retrieved documents.
+        Truncates evidence to fit within max_total_chars (approximate token budget).
 
         Args:
             query (str): The user's query.
             retrieved_docs (List[str]): List of retrieved document texts.
-            max_doc_chars (int): Max characters per doc snippet in prompt.
+            max_total_chars (int): Max total characters for all evidence snippets combined.
             prior_answers (List[str]): Answers from previous sub-questions for chain reasoning.
 
         Returns:
             str : the answer
         """
-        evidence_snippets = "\n".join(
-            [f"[{i+1}] {doc[:max_doc_chars]}" for i, doc in enumerate(retrieved_docs)]
-        )
+        # Build evidence snippets with total character budget
+        # Approximate: 1 token ~= 4 chars for English text
+        # max_total_chars=8000 ~= 2000 tokens for evidence
+        snippets = []
+        remaining = max_total_chars
+        for i, doc in enumerate(retrieved_docs):
+            if remaining <= 0:
+                break
+            snippet = doc[:remaining]
+            snippets.append(f"[{i+1}] {snippet}")
+            remaining -= len(snippet)
+
+        evidence_snippets = "\n".join(snippets)
 
         prior_context = ""
         if prior_answers:
