@@ -47,12 +47,12 @@ class RAGPipeline:
         if model_name in self.generator_map:
             logger.debug(f"{model_name} already been loaded, skip")
             return self.generator_map[model_name]
-        logger.info("start init new generator: {model_name}")
+        logger.info(f"start init new generator: {model_name}")
         if model_name == "Qwen/Qwen2.5-0.5B-Instruct":
             self.generator_map[model_name] = HuggingfaceGenerator(model_name=model_name)
         else:
             self.generator_map[model_name] = OpenAIGenerator(model_name=model_name)
-        logger.info("new generator: {model_name} loaded.")
+        logger.info(f"new generator: {model_name} loaded.")
         return self.generator_map[model_name]
 
 

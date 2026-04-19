@@ -48,7 +48,7 @@ class HuggingfaceGenerator:
             str: The answer
         """
         messages = [
-            { "role" : "system", "content" : "You are a helpful assistant. Answer strictly using the provided context in few words."},
+            { "role" : "system", "content" : "You are a precise question-answering assistant. Provide short, direct answers: a single entity name, a short phrase, or 'yes'/'no'. Do not write full sentences or add explanations."},
             { "role": "user", "content": prompt }
         ]
         text = self.tokenizer.apply_chat_template(

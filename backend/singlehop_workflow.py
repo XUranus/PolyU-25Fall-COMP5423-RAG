@@ -40,18 +40,46 @@ class SingleHopWorkflow:
         evidence_snippets = "\n".join(
             [f"[{i+1}] {doc[:max_doc_chars]}" for i, doc in enumerate(retrieved_docs)]
         )
-        
+
         prompt = (
-            "Question:\n"
-            f"{query}\n\n"
-            f"nContext: {evidence_snippets}\n\n"
+            "Answer the question using ONLY the information in the evidence below. "
+            "Your answer must be a short phrase, a single entity name, or 'yes'/'no'. "
+            "Do NOT write a full sentence. Do NOT add explanations.\n\n"
+
+            "Evidence:\n"
+            f"{evidence_snippets}\n\n"
+
+            f"Question: {query}\n\n"
+
+            "Answer:"
         )
 
         logger.debug(f"Generated prompt\n: {prompt}")
         response = self.generator.generate(prompt)
-        if response.startswith("Answer:"):
-            response = response[len("Answer:"):]
-        return response
+        return self._post_process_answer(response)
+
+    def _post_process_answer(self, answer: str) -> str:
+        """
+        Post-processes the LLM output to extract a clean answer.
+        """
+        answer = answer.strip()
+
+        prefixes = [
+            "Final Answer:", "Final answer:", "The answer is:", "The final answer is:",
+            "Answer:", "A:", "Based on the evidence,", "Based on the information provided,",
+        ]
+        for prefix in prefixes:
+            if answer.startswith(prefix):
+                answer = answer[len(prefix):].strip()
+
+        lines = [l.strip() for l in answer.split('\n') if l.strip()]
+        if lines:
+            answer = lines[0]
+
+        if answer.endswith('.'):
+            answer = answer[:-1].strip()
+
+        return answer
     
 
     def run(self, question: str) -> Tuple[str, List[Dict[str, Any]]]:

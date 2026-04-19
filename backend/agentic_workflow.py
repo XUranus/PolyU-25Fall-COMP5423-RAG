@@ -29,7 +29,7 @@ class AgenticWorkflow:
         self.session_history = session_history
         self.MAX_DECOMPOSITION_STEPS = 10
 
-    def answer_from_docs(self, query: str, retrieved_docs: List[str], max_doc_chars: int = 2000) -> str:
+    def answer_from_docs(self, query: str, retrieved_docs: List[str], max_doc_chars: int = 2000, prior_answers: List[str] = None) -> str:
         """
         Builds the prompt string from the documents for the LLM.
         Generates an answer based on the query and retrieved documents.
@@ -38,6 +38,7 @@ class AgenticWorkflow:
             query (str): The user's query.
             retrieved_docs (List[str]): List of retrieved document texts.
             max_doc_chars (int): Max characters per doc snippet in prompt.
+            prior_answers (List[str]): Answers from previous sub-questions for chain reasoning.
 
         Returns:
             str : the answer
@@ -46,11 +47,18 @@ class AgenticWorkflow:
             [f"[{i+1}] {doc[:max_doc_chars]}" for i, doc in enumerate(retrieved_docs)]
         )
 
+        prior_context = ""
+        if prior_answers:
+            prior_context = "Previous sub-answers:\n" + "\n".join(
+                [f"- {ans}" for ans in prior_answers]
+            ) + "\n\nUse these answers if they help answer the current question.\n\n"
+
         prompt = (
             "Answer the question using ONLY the information in the evidence below. "
             "Your answer must be a short phrase, a single entity name, or 'yes'/'no'. "
             "Do NOT write a full sentence. Do NOT add explanations.\n\n"
 
+            f"{prior_context}"
             "Evidence:\n"
             f"{evidence_snippets}\n\n"
 
@@ -282,6 +290,9 @@ class AgenticWorkflow:
         """
         Main function to execute the agentic workflow.
 
+        Always attempts decomposition since HotpotQA is a multi-hop dataset.
+        Falls back to single-hop if decomposition yields <2 sub-questions.
+
         Args:
             question (str): The input question.
 
@@ -305,48 +316,25 @@ class AgenticWorkflow:
                 step_cnt += 1
                 question = new_query
 
-        # 1. Identify if the question is multi-hop
-        multi_hop_pattern = self.identify_multi_hop_pattern(question)
-        is_multi_hop = multi_hop_pattern is not None
-        logger.debug(f'question = {question}, is_multi_hop = {is_multi_hop}')
+        # 1. Always attempt decomposition (HotpotQA is multi-hop by design)
+        sub_questions = self.decompose_query(question)
+        is_multi_hop = len(sub_questions) >= 2
 
         steps_log.append({
             "step": step_cnt,
-            "description": f"Initial Analysis: Question is {'multi-hop' if is_multi_hop else 'single-hop'}. Pattern detected: `{multi_hop_pattern or 'None'}`.",
-            "type" : "identify",
-            "query": question,
+            "description": f"Query decomposition: The question was broken down into {len(sub_questions)} sub-questions. {'Proceeding with multi-hop.' if is_multi_hop else 'Falling back to single-hop.'}",
+            "type" : "decomposition",
+            "sub_questions": sub_questions,
             "result": None
         })
         step_cnt += 1
 
-        # 2. Try decompose the multi-hop question
         if is_multi_hop:
-            sub_questions = self.decompose_query(question)
-            steps_log.append({
-                "step": step_cnt,
-                "description": f"Query decomposition: The question was broken down into {len(sub_questions)} sub-questions.",
-                "type" : "decomposition",
-                "sub_questions": sub_questions,
-                "result": None
-            })
-            step_cnt += 1
-            if len(sub_questions) < 2:
-                # If decomposition failed, fallback to single-hop
-                is_multi_hop = False
-                steps_log.append({
-                    "step": step_cnt,
-                    "description": "Decomposition yielded less than 2 sub-questions, falling back to single-hop processing.",
-                    "type" : "fallback",
-                    "result": None
-                })
-                step_cnt += 1
-
-        if is_multi_hop:
-            # 3. Process each sub-question
+            # 2. Process each sub-question with chain reasoning
             sub_answers = []
             for i, sub_q in enumerate(sub_questions):
                 # Retrieve relevant documents for the sub-question
-                retrieved_docs = self.retriever.retrieve(sub_q, k = 10) # Adjust top_k as needed
+                retrieved_docs = self.retriever.retrieve(sub_q, k = 10)
                 steps_log.append({
                     "step": step_cnt,
                     "description": f"Retrieval for Sub-question {i+1} : *{sub_q}*",
@@ -357,7 +345,9 @@ class AgenticWorkflow:
                 step_cnt += 1
 
                 # Generate an answer for the sub-question using retrieved docs
-                sub_answer = self.answer_from_docs(sub_q, [doc_text for (_, doc_text, _) in retrieved_docs])
+                # Pass previous sub-answers as context for chain reasoning
+                doc_texts = [doc_text for (_, doc_text, _) in retrieved_docs]
+                sub_answer = self.answer_from_docs(sub_q, doc_texts, prior_answers=sub_answers[:i])
                 sub_answers.append(sub_answer)
 
                 steps_log.append({
@@ -369,7 +359,7 @@ class AgenticWorkflow:
                 })
                 step_cnt += 1
 
-            # 4. Synthesize the final answer from sub-answers
+            # 3. Synthesize the final answer from sub-answers
             final_answer = self.synthesize_answer(original_question, sub_answers)
             steps_log.append({
                 "step": step_cnt,
@@ -377,7 +367,6 @@ class AgenticWorkflow:
                 "type" : "multi_hop_synthesize_answer",
                 "result": final_answer
             })
-            step_cnt += 1
 
         else:
             # If not multi-hop, run standard single-turn RAG
@@ -389,7 +378,6 @@ class AgenticWorkflow:
                 "query": question,
                 "retrieved_docs": retrieved_docs
             })
-            step_cnt += 1
 
             final_answer = self.answer_from_docs(question, [doc_text for (_, doc_text, _) in retrieved_docs])
             steps_log.append({
