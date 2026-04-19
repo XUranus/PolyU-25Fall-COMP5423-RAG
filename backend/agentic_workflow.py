@@ -257,6 +257,64 @@ class AgenticWorkflow:
         final_answer = self.generator.generate(synthesis_prompt)
         return self._post_process_answer(final_answer)
 
+    def verify_answer(self, question: str, answer: str, evidence: str) -> str:
+        """
+        Verifies the generated answer against the evidence using the LLM.
+        If the answer is contradicted or unsupported, returns an empty string
+        to signal that regeneration should be attempted.
+
+        Args:
+            question: The original question.
+            answer: The generated answer to verify.
+            evidence: The evidence text used to generate the answer.
+
+        Returns:
+            The verified answer, or empty string if verification fails.
+        """
+        verify_prompt = (
+            "Verify whether the following answer is directly supported by the evidence.\n\n"
+            f"Question: {question}\n"
+            f"Answer: {answer}\n\n"
+            f"Evidence:\n{evidence[:3000]}\n\n"
+            "Is the answer supported by the evidence? Respond with ONLY 'yes' or 'no'."
+        )
+        try:
+            response = self.generator.generate(verify_prompt).strip().lower()
+            if 'yes' in response:
+                return answer
+            else:
+                logger.debug(f"Answer verification failed for: {answer}")
+                return ""
+        except Exception as e:
+            logger.warning(f"Answer verification error: {e}. Keeping original answer.")
+            return answer
+
+    def answer_with_verification(self, query: str, retrieved_docs: List[str], max_retries: int = 1, prior_answers: List[str] = None) -> str:
+        """
+        Generates an answer with optional verification and retry.
+        If verification fails, regenerates the answer up to max_retries times.
+
+        Args:
+            query: The question to answer.
+            retrieved_docs: List of retrieved document texts.
+            max_retries: Number of retry attempts if verification fails.
+            prior_answers: Answers from previous sub-questions for chain reasoning.
+
+        Returns:
+            The best answer found.
+        """
+        evidence = "\n".join([doc[:2000] for doc in retrieved_docs])
+        answer = self.answer_from_docs(query, retrieved_docs, prior_answers=prior_answers)
+
+        for _ in range(max_retries):
+            verified = self.verify_answer(query, answer, evidence)
+            if verified:
+                return verified
+            # Regenerate
+            answer = self.answer_from_docs(query, retrieved_docs, prior_answers=prior_answers)
+
+        return answer
+
     def _post_process_answer(self, answer: str) -> str:
         """
         Post-processes the LLM output to extract a clean answer.
@@ -330,7 +388,19 @@ class AgenticWorkflow:
         step_cnt += 1
 
         if is_multi_hop:
-            # 2. Process each sub-question with chain reasoning
+            # 2. Retrieve for the original question AND sub-questions
+            # Some supporting docs may only be found via the original full question
+            original_retrieved = self.retriever.retrieve(question, k = 10)
+            steps_log.append({
+                "step": step_cnt,
+                "description": "Retrieval for original question (multi-hop context)",
+                "type" : "multi_hop_original_retrieval",
+                "query": question,
+                "retrieved_docs": original_retrieved
+            })
+            step_cnt += 1
+
+            # 3. Process each sub-question with chain reasoning
             sub_answers = []
             for i, sub_q in enumerate(sub_questions):
                 # Retrieve relevant documents for the sub-question
@@ -359,7 +429,7 @@ class AgenticWorkflow:
                 })
                 step_cnt += 1
 
-            # 3. Synthesize the final answer from sub-answers
+            # 4. Synthesize the final answer from sub-answers
             final_answer = self.synthesize_answer(original_question, sub_answers)
             steps_log.append({
                 "step": step_cnt,
@@ -369,7 +439,7 @@ class AgenticWorkflow:
             })
 
         else:
-            # If not multi-hop, run standard single-turn RAG
+            # If not multi-hop, run standard single-turn RAG with verification
             retrieved_docs = self.retriever.retrieve(question, k = 10)
             steps_log.append({
                 "step": step_cnt,
@@ -379,10 +449,10 @@ class AgenticWorkflow:
                 "retrieved_docs": retrieved_docs
             })
 
-            final_answer = self.answer_from_docs(question, [doc_text for (_, doc_text, _) in retrieved_docs])
+            final_answer = self.answer_with_verification(question, [doc_text for (_, doc_text, _) in retrieved_docs])
             steps_log.append({
                 "step": step_cnt,
-                "description": "Standard RAG Generation (Single-Hop)",
+                "description": "Standard RAG Generation (Single-Hop, with verification)",
                 "type" : "single_hop_generation",
                 "query": question,
                 "result": final_answer

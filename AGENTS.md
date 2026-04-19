@@ -20,6 +20,13 @@ pip install -r requirements.txt
 python server.py                             # Start Flask server on localhost:5000
 ```
 
+To speed up first startup, download pre-built BM25 cache:
+```bash
+cd $RAG42_CACHE_DIR
+wget https://github.com/XUranus/PolyU-25Fall-COMP5423-RAG/releases/download/BM25Cache/cache.zip
+unzip cache.zip
+```
+
 ### Frontend
 
 ```bash
@@ -34,9 +41,9 @@ npm test                                     # Run React tests
 
 ```bash
 cd evaluate
-python test_predict.py -d <validation_set> -g <model> -r <retriever>  # Run predictions
-python eval_retrieval.py --gold <gold> --pred <pred>                  # Retrieval metrics (MAP, NDCG, Recall)
-python eval_hotpotqa.py --gold <gold> --pred <pred>                   # QA metrics (EM, F1, joint EM/F1)
+python test_predict.py -d <dataset> -g <model> -r <retriever>  # Run predictions
+python eval_retrieval.py --gold <gold> --pred <pred>             # Retrieval metrics (MAP, NDCG, Recall)
+python eval_hotpotqa.py --gold <gold> --pred <pred>              # QA metrics (EM, F1, joint EM/F1)
 ```
 
 Retriever options: `sparse`, `static_embedding`, `dense`, `instruction`, `colbert`, `hybrid`

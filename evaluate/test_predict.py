@@ -77,6 +77,8 @@ def main():
         retriever_type = RETRIEVE_TYPE,
     )
     rag = RAGPipeline(retriever=my_retriever, enable_agentic_workflow = True)
+    # Pre-initialize generator to avoid thread-safety issues during concurrent execution
+    rag.init_generator(MODEL_NAME)
 
     def task(data):
         try:
@@ -112,10 +114,15 @@ def main():
             traceback.print_exc()
             print(f"{e}\n\n")
 
+    output_path = "./test_prediction.jsonl"
+    # Remove existing output file to prevent stale results from accumulating
+    if os.path.exists(output_path):
+        os.remove(output_path)
+
     now = time.time()
-    with ThreadPoolExecutor(max_workers = 20) as executor:
+    with ThreadPoolExecutor(max_workers = 4) as executor:
         results = list(executor.map(task, dataset))
-        with open("./test_prediction.jsonl", "a") as f:
+        with open(output_path, "w") as f:
             for result in results:
                 f.write(result + "\n")
     print(f'time elasped {time.time() - now}')

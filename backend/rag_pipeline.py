@@ -8,6 +8,7 @@ This is the main orchestrator. It takes a query, runs retrieval, generation, and
 
 from typing import List, Dict, Any, Tuple, Optional
 import logging
+import threading
 
 from agentic_workflow import AgenticWorkflow
 from singlehop_workflow import SingleHopWorkflow
@@ -35,24 +36,29 @@ class RAGPipeline:
         self.retriever = retriever
         self.enable_agentic_workflow = enable_agentic_workflow
         self.generator_map = {} # generator map
+        self._generator_lock = threading.Lock()
 
 
     def init_generator(self, model_name : str):
         """
         Initialize a model and add it into the generator map
-        
+
         Args:
             model_name (str) : The huggingface model or the openai API model
         """
         if model_name in self.generator_map:
             logger.debug(f"{model_name} already been loaded, skip")
             return self.generator_map[model_name]
-        logger.info(f"start init new generator: {model_name}")
-        if model_name == "Qwen/Qwen2.5-0.5B-Instruct":
-            self.generator_map[model_name] = HuggingfaceGenerator(model_name=model_name)
-        else:
-            self.generator_map[model_name] = OpenAIGenerator(model_name=model_name)
-        logger.info(f"new generator: {model_name} loaded.")
+        with self._generator_lock:
+            # Double-check after acquiring lock
+            if model_name in self.generator_map:
+                return self.generator_map[model_name]
+            logger.info(f"start init new generator: {model_name}")
+            if model_name == "Qwen/Qwen2.5-0.5B-Instruct":
+                self.generator_map[model_name] = HuggingfaceGenerator(model_name=model_name)
+            else:
+                self.generator_map[model_name] = OpenAIGenerator(model_name=model_name)
+            logger.info(f"new generator: {model_name} loaded.")
         return self.generator_map[model_name]
 
 

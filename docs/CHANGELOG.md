@@ -1,5 +1,17 @@
 # Changelog
 
+## [Stage 3] - 2026-04-19
+
+### Answer Verification & Multi-hop Retrieval
+
+- **Added answer verification**: New `verify_answer` method uses the LLM to check if the generated answer is supported by the evidence. Single-hop answers now go through `answer_with_verification` which retries once if verification fails (`agentic_workflow.py`)
+- **Retrieve for original question in multi-hop path**: Added a retrieval step for the original question alongside sub-question retrievals. Some supporting documents may only be found via the full original question, not the decomposed sub-questions (`agentic_workflow.py`)
+
+### Thread Safety & Robustness
+
+- **Fixed thread safety in `RAGPipeline.init_generator`**: Added `threading.Lock` with double-check locking pattern to prevent race conditions when multiple threads initialize the same generator simultaneously (`rag_pipeline.py`)
+- **Fixed `test_predict.py` append mode**: Output file now opens in write mode (`"w"`) and existing file is explicitly removed before execution, preventing stale results from accumulating. Reduced `max_workers` from 20 to 4 to avoid overwhelming the API. Pre-initializes the generator before the thread pool (`test_predict.py`)
+
 ## [Stage 2] - 2026-04-19
 
 ### Workflow Improvements
