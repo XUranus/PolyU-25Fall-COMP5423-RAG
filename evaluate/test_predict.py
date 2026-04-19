@@ -57,7 +57,7 @@ def main():
             '--generator', '-g', type=str, required=True,
             help='LLM generator to use (qwen2.5-0.5b-instruct | qwen2.5-1.5b-instruct | qwen2.5-3b-instruct | qwen2.5-7b-instruct)')
     parser.add_argument('--retriever', '-r', type=str, required=True,
-            help='Retriever to use (sparse | static_embedding | dense | hybrid).')
+            help='Retriever to use (sparse | static_embedding | dense | instruction | colbert | hybrid).')
     args = parser.parse_args()
 
 
@@ -83,19 +83,23 @@ def main():
             id = data['id']
             question = data['text']
             response = rag.run(query = question, model_name = MODEL_NAME)
-            find_docs = []
             answer = response["answer"]
             thinking_process = response["thinking_process"]
+
+            # Collect retrieved docs from all steps, keeping the highest score per doc
+            # This ensures supporting docs from sub-question steps are included
+            doc_scores = {}
             for step in thinking_process:
                 if "retrieved_docs" in step:
-                    find_docs.extend(step["retrieved_docs"])
-            
-            seen_ids = set()
-            retrieved_docs = []
-            for doc in find_docs:
-                if doc['id'] not in seen_ids:
-                    seen_ids.add(doc['id'])
-                    retrieved_docs.append([doc['id'], doc['score']])
+                    for doc in step["retrieved_docs"]:
+                        doc_id = doc['id']
+                        score = doc['score']
+                        if doc_id not in doc_scores or score > doc_scores[doc_id]:
+                            doc_scores[doc_id] = score
+
+            # Sort by score descending and take top 10
+            sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)[:10]
+            retrieved_docs = [[doc_id, score] for doc_id, score in sorted_docs]
 
             predict = {
                 'id' : id,

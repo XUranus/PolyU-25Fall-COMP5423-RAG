@@ -17,11 +17,12 @@ logger = logging.getLogger('RAG42')
 class DenseRetriever(BaseRetriever):
     """
     Dense retrieval module using BGE/SentenceTransformer and FAISS.
+    Supports configurable models: bge-small, bge-base, bge-large, gte, etc.
     """
     def __init__(
         self,
         collection_path: str,
-        dense_model_name: str = "BAAI/bge-small-en-v1.5",
+        dense_model_name: str = "BAAI/bge-large-en-v1.5",
         use_cache: bool = True,
         cache_dir: str = os.getenv('RAG42_CACHE_DIR', './cache')
     ):
@@ -36,6 +37,8 @@ class DenseRetriever(BaseRetriever):
         """
         self.dense_model_name = dense_model_name
         self.use_cache = use_cache
+        # BGE models recommend prepending "Represent this sentence: " for queries
+        self._query_prefix = "Represent this sentence: " if "bge" in dense_model_name.lower() else ""
         super().__init__(collection_path, cache_dir)
         self._build_index()
 
@@ -82,7 +85,8 @@ class DenseRetriever(BaseRetriever):
         Returns:
             List of tuples (doc_id, doc_text, score).
         """
-        query_emb = self.dense_model.encode([query])
+        query_text = self._query_prefix + query
+        query_emb = self.dense_model.encode([query_text])
         faiss.normalize_L2(query_emb)
         scores, indices = self.dense_index.search(query_emb, k=k)
         

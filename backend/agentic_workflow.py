@@ -45,23 +45,22 @@ class AgenticWorkflow:
         evidence_snippets = "\n".join(
             [f"[{i+1}] {doc[:max_doc_chars]}" for i, doc in enumerate(retrieved_docs)]
         )
-        
+
         prompt = (
             "Answer the question using ONLY the information in the evidence below. "
-            "If the evidence does not contain enough information to answer the question, respond: 'I don't know.'\n\n"
-            
+            "Your answer must be a short phrase, a single entity name, or 'yes'/'no'. "
+            "Do NOT write a full sentence. Do NOT add explanations.\n\n"
+
             "Evidence:\n"
             f"{evidence_snippets}\n\n"
-            
+
             f"Question: {query}\n\n"
-            
+
             "Answer:"
         )
         logger.debug(f"Generated prompt\n: {prompt}")
         response = self.generator.generate(prompt)
-        if response.startswith("Answer:"):
-            response = response[len("Answer:"):]
-        return response
+        return self._post_process_answer(response)
     
 
     def reformulate_query(self, query: str, history: List[Dict[str, str]]) -> str:
@@ -124,32 +123,54 @@ class AgenticWorkflow:
 
     def identify_multi_hop_pattern(self, question: str) -> Optional[str]:
         """
-        Heuristically identifies if a question might be multi-hop based on keywords/phrases.
-        This is a simple rule-based check. More sophisticated methods could use NER/RE.
+        Uses the LLM to determine if a question is multi-hop.
+        Falls back to heuristic regex if LLM is unavailable.
+        For HotpotQA specifically, most questions are multi-hop, so this
+        errs on the side of decomposition.
+        """
+        try:
+            classification_prompt = (
+                "Determine whether the following question requires reasoning across multiple pieces of information (multi-hop) "
+                "or can be answered with a single fact (single-hop).\n\n"
+                "A multi-hop question typically:\n"
+                "- Asks about two or more entities and their relationship\n"
+                "- Requires finding one entity to answer about another\n"
+                "- Contains chains like 'Who is the director of the movie that won...'\n\n"
+                f"Question: {question}\n\n"
+                "Respond with ONLY 'multi-hop' or 'single-hop'."
+            )
+            response = self.generator.generate(classification_prompt).strip().lower()
+            if 'multi' in response:
+                return "llm_classified_multi_hop"
+            elif 'single' in response:
+                return None
+            # If ambiguous response, default to multi-hop for HotpotQA
+            return "llm_classified_multi_hop"
+        except Exception as e:
+            logger.warning(f"LLM multi-hop classification failed: {e}. Falling back to heuristic.")
+            return self._heuristic_multi_hop_check(question)
+
+    def _heuristic_multi_hop_check(self, question: str) -> Optional[str]:
+        """
+        Fallback heuristic check for multi-hop questions using regex patterns.
         """
         question_lower = question.lower().strip()
 
-        # Enhanced multi-hop indicators with more comprehensive patterns
         multi_hop_indicators = [
-            # Temporal relationships
             r'\bwhen.*(?:won|received|got|achieved|was awarded)\b',
             r'\bwhen.*was.*born\b',
             r'\b(?:before|after|during|following).*when\b',
-            # Causal relationships
             r'\b(?:what|who|which).*led to\b',
             r'\b(?:what|who|which).*caused\b',
             r'\b(?:result of|consequence of|due to)\b',
-            # Comparative/relational
             r'\b(?:who|what|which).*(?:after|before|instead of|rather than)\b',
             r'\b(?:first.*then|initially.*subsequently|earlier.*later)\b',
-            # Entity relationship chains
             r'\b(?:who|what).*works for.*who\b',
             r'\b(?:where|which).*located in.*where\b',
             r'\b(?:what|which).*created by.*who\b',
-            # Multi-entity references
             r'\b(?:both.*and|either.*or|neither.*nor).*\b(?:who|what|where)\b',
         ]
-        
+
         for pattern in multi_hop_indicators:
             if re.search(pattern, question_lower):
                 return pattern
@@ -214,27 +235,47 @@ class AgenticWorkflow:
         """
         context_for_synthesis = "\n".join([f"Sub-answer {i+1}: {ans}" for i, ans in enumerate(sub_answers)])
         synthesis_prompt = (
-            "You are given a complex question and the verified answers to its sub-questions. "
-            "Combine ONLY the provided sub-answers to form a final, concise answer to the original question. "
-            "Do NOT use external knowledge or speculate. If sub-answers are insufficient, say 'I don't know.'\n\n"
-            
+            "You are given a complex question and the answers to its sub-questions. "
+            "Combine the sub-answers to form a final, concise answer to the original question. "
+            "Your answer must be a short phrase, a single entity name, or 'yes'/'no'. "
+            "Do NOT write a full sentence. Do NOT add explanations.\n\n"
+
             f"Original Question: {question}\n\n"
             "Sub-answers:\n"
             f"{context_for_synthesis}\n\n"
-            
+
             "Final Answer:"
         )
         final_answer = self.generator.generate(synthesis_prompt)
-        # A simple heuristic might be to take the last non-empty line.
-        lines = final_answer.strip().split('\n')
-        for line in reversed(lines):
-            if line.strip():
-                return line.strip()
-        final_answer = final_answer.strip()
-        # Post-process to remove potential prefixes like "The final answer is..."
-        if final_answer.startswith("Final Answer:"):
-            final_answer = final_answer[len("Final Answer:"):]
-        return final_answer
+        return self._post_process_answer(final_answer)
+
+    def _post_process_answer(self, answer: str) -> str:
+        """
+        Post-processes the LLM output to extract a clean answer.
+        Strips common prefixes, verbose formulations, and normalizes
+        to the short entity-style format expected by HotpotQA.
+        """
+        answer = answer.strip()
+
+        # Remove common prefixes
+        prefixes = [
+            "Final Answer:", "Final answer:", "The answer is:", "The final answer is:",
+            "Answer:", "A:", "Based on the evidence,", "Based on the information provided,",
+        ]
+        for prefix in prefixes:
+            if answer.startswith(prefix):
+                answer = answer[len(prefix):].strip()
+
+        # If the answer is multi-line, take the first non-empty line
+        lines = [l.strip() for l in answer.split('\n') if l.strip()]
+        if lines:
+            answer = lines[0]
+
+        # Remove trailing period if present (HotpotQA answers typically don't end with period)
+        if answer.endswith('.'):
+            answer = answer[:-1].strip()
+
+        return answer
 
 
     def run(self, question: str) -> Tuple[str, List[Dict[str, Any]]]:

@@ -78,6 +78,12 @@ class BaseRetriever(ABC):
         elif retriever_type.lower() == 'dense':
             from dense_retriever import DenseRetriever
             return DenseRetriever(**kwargs)
+        elif retriever_type.lower() == 'instruction':
+            from instruction_retriever import InstructionRetriever
+            return InstructionRetriever(**kwargs)
+        elif retriever_type.lower() == 'colbert':
+            from colbert_retriever import ColBERTRetriever
+            return ColBERTRetriever(**kwargs)
         elif retriever_type.lower() == 'hybrid':
             from hybrid_retriever import HybridRetriever
             return HybridRetriever(**kwargs)
