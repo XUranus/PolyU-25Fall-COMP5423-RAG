@@ -23,7 +23,8 @@ class SparseRetriever(BaseRetriever):
         collection_path: str,
         sparse_model_name: str = "bm25s",
         use_cache: bool = True,
-        cache_dir: str = os.getenv('RAG42_CACHE_DIR', './cache')
+        cache_dir: str = os.getenv('RAG42_CACHE_DIR', './cache'),
+        skip_load: bool = False
     ):
         """
         Initializes the Sparse Retriever.
@@ -33,11 +34,13 @@ class SparseRetriever(BaseRetriever):
             sparse_model_name: Name of the sparse model (currently only BM25 is implemented).
             use_cache: Whether to load a pre-built BM25 index if available.
             cache_dir: Directory to store cached indices.
+            skip_load: If True, skip loading the collection (caller provides data).
         """
         self.sparse_model_name = sparse_model_name
         self.use_cache = use_cache
-        super().__init__(collection_path, cache_dir)
-        self._build_index()
+        super().__init__(collection_path, cache_dir, skip_load=skip_load)
+        if not skip_load:
+            self._build_index()
 
 
     def _build_index(self):

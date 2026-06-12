@@ -91,12 +91,16 @@ def initialize_rag_modules():
         except Exception as e:
             logger.error(f"Error init rag modules: {e}")
             logger.error(traceback.format_exc())
-            return jsonify({'error': 'Failed to init rag modules'}), 500
+            return
 
 
 logger.info("Starting Flask app...")
 app = Flask(__name__)
-CORS(app)
+cors_origins = os.getenv('RAG42_CORS_ORIGINS', '*')
+if cors_origins == '*':
+    CORS(app)
+else:
+    CORS(app, origins=cors_origins.split(','))
 
 
 # --- Database Helper Functions ---
@@ -186,6 +190,7 @@ def delete_chat(chat_id : str):
     """
     Deletes a specific chat session and its messages.
     """
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -201,14 +206,13 @@ def delete_chat(chat_id : str):
         conn.commit()
         conn.close()
 
-        # If the deleted chat was the current one, the frontend might want to clear the chat panel
-        # Returning a success message is sufficient here
         return jsonify({'message': 'Chat deleted successfully'}), 200
 
     except Exception as e:
         logger.error(f"Error deleting chat {chat_id}: {e}")
         logger.error(traceback.format_exc())
-        conn.rollback() # Rollback in case of error
+        if conn:
+            conn.rollback()
         return jsonify({'error': 'Failed to delete chat'}), 500
 
 
@@ -217,11 +221,11 @@ def delete_message(message_id : str):
     """
     Deletes a specific message.
     """
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Delete the session (messages will be deleted automatically due to CASCADE)
         cur.execute('DELETE FROM messages WHERE id = ?', (message_id,))
         conn.commit()
         conn.close()
@@ -230,7 +234,8 @@ def delete_message(message_id : str):
     except Exception as e:
         logger.error(f"Error deleting message {message_id}: {e}")
         logger.error(traceback.format_exc())
-        conn.rollback() # Rollback in case of error
+        if conn:
+            conn.rollback()
         return jsonify({'error': 'Failed to delete chat'}), 500
 
 
@@ -281,6 +286,9 @@ def send_message(chat_id : str):
         if not user_message:
             return jsonify({'error': 'Message content is required'}), 400
 
+        if len(user_message) > 10000:
+            return jsonify({'error': 'Message too long (max 10000 characters)'}), 400
+
         # Validate that the chat_id exists before proceeding
         conn = get_db_connection()
         session_check = conn.execute('SELECT id FROM chat_sessions WHERE id = ?', (chat_id,)).fetchone()
@@ -296,7 +304,6 @@ def send_message(chat_id : str):
             ORDER BY timestamp ASC
         ''', (chat_id,)).fetchall()
         history_dialogues = [dict(msg) for msg in history_dialogues]
-        history_dialogues
         logger.debug(f'Collected history dialogues: {history_dialogues}')
 
         # 2. Store the user's message with a UUID

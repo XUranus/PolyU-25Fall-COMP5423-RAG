@@ -1,0 +1,103 @@
+.container {
+  margin: 1rem 0;
+}
+
+.sortControls {
+  margin-bottom: 1rem;
+  font-size: 14px;
+}
+.sortBtn {
+  padding: 4px 12px;
+  margin: 0 4px;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 6px;
+  background: var(--ifm-background-surface-color);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  color: var(--ifm-font-color-base);
+}
+.sortActive {
+  background: var(--ifm-color-primary);
+  color: white;
+  border-color: var(--ifm-color-primary);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-left: 4px solid #ccc;
+  border-radius: 8px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: var(--ifm-background-surface-color);
+}
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+.cardActive {
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.2);
+}
+
+.cardHeader {
+  margin-bottom: 0.75rem;
+  font-size: 15px;
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.barRow > span:first-child {
+  width: 55px;
+  text-align: right;
+  color: var(--ifm-color-emphasis-700);
+}
+.barRow > span:last-child {
+  width: 35px;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.barOuter {
+  flex: 1;
+  height: 8px;
+  background: var(--ifm-color-emphasis-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.barInner {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.detail {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+  font-size: 13px;
+  animation: fadeIn 0.3s ease;
+}
+.detail p {
+  margin: 4px 0;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

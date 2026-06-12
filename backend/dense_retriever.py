@@ -24,7 +24,8 @@ class DenseRetriever(BaseRetriever):
         collection_path: str,
         dense_model_name: str = "BAAI/bge-large-en-v1.5",
         use_cache: bool = True,
-        cache_dir: str = os.getenv('RAG42_CACHE_DIR', './cache')
+        cache_dir: str = os.getenv('RAG42_CACHE_DIR', './cache'),
+        skip_load: bool = False
     ):
         """
         Initializes the Dense Retriever.
@@ -34,13 +35,15 @@ class DenseRetriever(BaseRetriever):
             dense_model_name: Name of the dense embedding model.
             use_cache: Whether to load a pre-built FAISS index if available.
             cache_dir: Directory to store cached indices.
+            skip_load: If True, skip loading the collection (caller provides data).
         """
         self.dense_model_name = dense_model_name
         self.use_cache = use_cache
         # BGE models recommend prepending "Represent this sentence: " for queries
         self._query_prefix = "Represent this sentence: " if "bge" in dense_model_name.lower() else ""
-        super().__init__(collection_path, cache_dir)
-        self._build_index()
+        super().__init__(collection_path, cache_dir, skip_load=skip_load)
+        if not skip_load:
+            self._build_index()
 
 
     def _build_index(self):

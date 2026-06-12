@@ -8,6 +8,7 @@ It's only used as a baseline method for test
 
 from typing import List, Dict, Any, Tuple, Optional
 from retriever_base import BaseRetriever
+from rag_utils import post_process_answer, build_evidence_snippets
 import logging
 import re
 
@@ -38,16 +39,7 @@ class SingleHopWorkflow:
         Returns:
             str : the answer
         """
-        snippets = []
-        remaining = max_total_chars
-        for i, doc in enumerate(retrieved_docs):
-            if remaining <= 0:
-                break
-            snippet = doc[:remaining]
-            snippets.append(f"[{i+1}] {snippet}")
-            remaining -= len(snippet)
-
-        evidence_snippets = "\n".join(snippets)
+        evidence_snippets = build_evidence_snippets(retrieved_docs, max_total_chars)
 
         prompt = (
             "Answer the question using ONLY the information in the evidence below. "
@@ -64,31 +56,8 @@ class SingleHopWorkflow:
 
         logger.debug(f"Generated prompt\n: {prompt}")
         response = self.generator.generate(prompt)
-        return self._post_process_answer(response)
+        return post_process_answer(response)
 
-    def _post_process_answer(self, answer: str) -> str:
-        """
-        Post-processes the LLM output to extract a clean answer.
-        """
-        answer = answer.strip()
-
-        prefixes = [
-            "Final Answer:", "Final answer:", "The answer is:", "The final answer is:",
-            "Answer:", "A:", "Based on the evidence,", "Based on the information provided,",
-        ]
-        for prefix in prefixes:
-            if answer.startswith(prefix):
-                answer = answer[len(prefix):].strip()
-
-        lines = [l.strip() for l in answer.split('\n') if l.strip()]
-        if lines:
-            answer = lines[0]
-
-        if answer.endswith('.'):
-            answer = answer[:-1].strip()
-
-        return answer
-    
 
     def run(self, question: str) -> Tuple[str, List[Dict[str, Any]]]:
         """

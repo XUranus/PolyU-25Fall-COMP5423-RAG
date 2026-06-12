@@ -13,6 +13,7 @@ import threading
 from agentic_workflow import AgenticWorkflow
 from singlehop_workflow import SingleHopWorkflow
 from hybrid_retriever import HybridRetriever
+from generator_base import BaseGenerator
 from huggingface_generator import HuggingfaceGenerator
 from openai_generator import OpenAIGenerator
 
@@ -31,13 +32,18 @@ class RAGPipeline:
 
         Args:
             retriever (HybridRetriever): The retrieval module instance.
-            generator (QwenGenerator): The generation module instance.
+            enable_agentic_workflow (bool): Whether to use agentic workflow (default True).
         """
         self.retriever = retriever
         self.enable_agentic_workflow = enable_agentic_workflow
         self.generator_map = {} # generator map
         self._generator_lock = threading.Lock()
 
+
+    # Generator class registry
+    GENERATOR_REGISTRY = {
+        "Qwen/Qwen2.5-0.5B-Instruct": "huggingface",
+    }
 
     def init_generator(self, model_name : str):
         """
@@ -54,7 +60,7 @@ class RAGPipeline:
             if model_name in self.generator_map:
                 return self.generator_map[model_name]
             logger.info(f"start init new generator: {model_name}")
-            if model_name == "Qwen/Qwen2.5-0.5B-Instruct":
+            if model_name in self.GENERATOR_REGISTRY and self.GENERATOR_REGISTRY[model_name] == "huggingface":
                 self.generator_map[model_name] = HuggingfaceGenerator(model_name=model_name)
             else:
                 self.generator_map[model_name] = OpenAIGenerator(model_name=model_name)
@@ -80,7 +86,7 @@ class RAGPipeline:
         """
         # check generator
         self.init_generator(model_name)
-        generator = self.generator_map[model_name]
+        generator: BaseGenerator = self.generator_map[model_name]
 
         thinking_process = []
 

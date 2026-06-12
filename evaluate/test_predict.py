@@ -130,7 +130,8 @@ def main():
 
 if __name__ == '__main__':
     print(f"RAG42_CACHE_DIR = {os.getenv('RAG42_CACHE_DIR')}")
-    print(f"RAG42_OPENAI_API_KEY = {os.getenv('RAG42_OPENAI_API_KEY')}")
+    api_key = os.getenv('RAG42_OPENAI_API_KEY', '')
+    print(f"RAG42_OPENAI_API_KEY = {'*' * min(len(api_key), 8) if api_key else '(not set)'}")
     print(f"RAG42_OPENAI_API_URL = {os.getenv('RAG42_OPENAI_API_URL')}")
     main()
 

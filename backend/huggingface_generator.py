@@ -7,12 +7,13 @@ This class wraps the local Qwen generation logic, making it easy to switch model
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import logging
-from typing import List, Dict 
+from typing import List, Dict
+from generator_base import BaseGenerator
 
 logger = logging.getLogger('RAG42')
 
 
-class HuggingfaceGenerator:
+class HuggingfaceGenerator(BaseGenerator):
     """
     Generator module using models like Qwen2.5 Instruct models from Huggingface.
     Handles prompt formatting and answer generation.

@@ -56,6 +56,16 @@ sudo docker-compose up
     npm start # react server run on localhost:3000
     ```
 
+## Documentation
+
+The full project documentation is available in the [`wiki/`](./wiki/) directory, built with [Docusaurus](https://docusaurus.io/). To view it locally:
+
+```bash
+cd wiki
+npm install
+npm start  # Opens at localhost:3000
+```
+
 ## FAQ
 ### What LLM models are used in this project?
  - Qwen2.5-0.5B-Instruct

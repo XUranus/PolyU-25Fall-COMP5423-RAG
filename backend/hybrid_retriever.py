@@ -50,19 +50,30 @@ class HybridRetriever(BaseRetriever):
         self.use_reranker = use_reranker
         super().__init__(collection_path, cache_dir)
 
-        # Initialize component retrievers
+        # Initialize component retrievers (reuse already-loaded collection to avoid triple-loading)
         self.sparse_retriever = SparseRetriever(
             collection_path=collection_path,
             sparse_model_name=sparse_model_name,
             use_cache=use_cache,
-            cache_dir=cache_dir
+            cache_dir=cache_dir,
+            skip_load=True
         )
+        self.sparse_retriever.doc_texts = self.doc_texts
+        self.sparse_retriever.doc_ids = self.doc_ids
+        self.sparse_retriever.id_to_text = self.id_to_text
+        self.sparse_retriever._build_index()
+
         self.dense_retriever = DenseRetriever(
             collection_path=collection_path,
             dense_model_name=dense_model_name,
             use_cache=use_cache,
-            cache_dir=cache_dir
+            cache_dir=cache_dir,
+            skip_load=True
         )
+        self.dense_retriever.doc_texts = self.doc_texts
+        self.dense_retriever.doc_ids = self.doc_ids
+        self.dense_retriever.id_to_text = self.id_to_text
+        self.dense_retriever._build_index()
 
         # Initialize re-ranker (lazy, only if enabled)
         self.reranker = None

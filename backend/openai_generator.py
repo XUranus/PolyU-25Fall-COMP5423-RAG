@@ -10,11 +10,12 @@ from typing import List, Dict
 from openai import OpenAI
 import os
 import traceback
+from generator_base import BaseGenerator
 
 logger = logging.getLogger('RAG42')
 
 
-class OpenAIGenerator:
+class OpenAIGenerator(BaseGenerator):
     """
     Generator module using OpenAI API as a provider instead of using local hugging face API to improve peformance.
     """
@@ -65,6 +66,6 @@ class OpenAIGenerator:
         except Exception as e:
             logger.error(f"Error using OpenAI API to generate: {e}")
             logger.error(traceback.format_exc())
-            return f'Failed to retrieve chat history {e}'
+            raise RuntimeError(f"OpenAI API generation failed: {e}") from e
 
 

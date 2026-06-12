@@ -21,14 +21,15 @@ class BaseRetriever(ABC):
     def __init__(
         self,
         collection_path: str,
-        cache_dir: str = os.getenv('RAG42_CACHE_DIR', './cache')
+        cache_dir: str = os.getenv('RAG42_CACHE_DIR', './cache'),
+        skip_load: bool = False
     ):
         self.collection_path = collection_path
         self.cache_dir = cache_dir
         os.makedirs(self.cache_dir, exist_ok=True)
-        
-        # Load collection
-        self._load_collection(collection_path)
+
+        if not skip_load:
+            self._load_collection(collection_path)
 
     def _load_collection(self, path: str):
         """Loads the document collection from HuggingFace or a file."""

@@ -1,0 +1,91 @@
+.container {
+  background: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin: 1rem 0;
+}
+
+.controls {
+  margin-bottom: 1rem;
+  font-size: 14px;
+}
+.controls input[type="range"] {
+  width: 200px;
+  vertical-align: middle;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table th, .table td {
+  padding: 8px 12px;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  text-align: center;
+}
+.table th {
+  background: var(--ifm-color-emphasis-100);
+  font-weight: 600;
+}
+
+.winner {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.rankInput {
+  width: 50px;
+  padding: 4px;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 4px;
+  text-align: center;
+  font-size: 14px;
+  background: var(--ifm-background-surface-color);
+  color: var(--ifm-font-color-base);
+}
+
+.scoreBar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+}
+.scoreFill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: rgba(37, 99, 235, 0.15);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.scoreBar span {
+  position: relative;
+  z-index: 1;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.finalRank {
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+}
+
+.formula {
+  margin-top: 1rem;
+  padding: 12px;
+  background: var(--ifm-color-emphasis-100);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 14px;
+}
+.formula code {
+  font-size: 16px;
+}
+.formula p {
+  margin: 8px 0 0;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 13px;
+}

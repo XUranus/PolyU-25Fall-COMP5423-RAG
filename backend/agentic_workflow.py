@@ -9,6 +9,7 @@ support multi-turn interactions and detailed thought processes.
 
 from typing import List, Dict, Any, Tuple, Optional
 from retriever_base import BaseRetriever
+from rag_utils import post_process_answer, build_evidence_snippets
 import logging
 import re
 
@@ -21,8 +22,10 @@ class AgenticWorkflow:
     def __init__(self,
                  retriever: BaseRetriever,
                  generator,
-                 need_reformulate : bool = False,
-                 session_history : List = []):
+                 need_reformulate: bool = False,
+                 session_history: Optional[List[Dict[str, str]]] = None):
+        if session_history is None:
+            session_history = []
         self.retriever = retriever
         self.generator = generator
         self.need_reformulate = need_reformulate
@@ -44,19 +47,7 @@ class AgenticWorkflow:
         Returns:
             str : the answer
         """
-        # Build evidence snippets with total character budget
-        # Approximate: 1 token ~= 4 chars for English text
-        # max_total_chars=8000 ~= 2000 tokens for evidence
-        snippets = []
-        remaining = max_total_chars
-        for i, doc in enumerate(retrieved_docs):
-            if remaining <= 0:
-                break
-            snippet = doc[:remaining]
-            snippets.append(f"[{i+1}] {snippet}")
-            remaining -= len(snippet)
-
-        evidence_snippets = "\n".join(snippets)
+        evidence_snippets = build_evidence_snippets(retrieved_docs, max_total_chars)
 
         prior_context = ""
         if prior_answers:
@@ -79,8 +70,8 @@ class AgenticWorkflow:
         )
         logger.debug(f"Generated prompt\n: {prompt}")
         response = self.generator.generate(prompt)
-        return self._post_process_answer(response)
-    
+        return post_process_answer(response)
+
 
     def reformulate_query(self, query: str, history: List[Dict[str, str]]) -> str:
         """
@@ -266,7 +257,7 @@ class AgenticWorkflow:
             "Final Answer:"
         )
         final_answer = self.generator.generate(synthesis_prompt)
-        return self._post_process_answer(final_answer)
+        return post_process_answer(final_answer)
 
     def verify_answer(self, question: str, answer: str, evidence: str) -> str:
         """
@@ -325,35 +316,6 @@ class AgenticWorkflow:
             answer = self.answer_from_docs(query, retrieved_docs, prior_answers=prior_answers)
 
         return answer
-
-    def _post_process_answer(self, answer: str) -> str:
-        """
-        Post-processes the LLM output to extract a clean answer.
-        Strips common prefixes, verbose formulations, and normalizes
-        to the short entity-style format expected by HotpotQA.
-        """
-        answer = answer.strip()
-
-        # Remove common prefixes
-        prefixes = [
-            "Final Answer:", "Final answer:", "The answer is:", "The final answer is:",
-            "Answer:", "A:", "Based on the evidence,", "Based on the information provided,",
-        ]
-        for prefix in prefixes:
-            if answer.startswith(prefix):
-                answer = answer[len(prefix):].strip()
-
-        # If the answer is multi-line, take the first non-empty line
-        lines = [l.strip() for l in answer.split('\n') if l.strip()]
-        if lines:
-            answer = lines[0]
-
-        # Remove trailing period if present (HotpotQA answers typically don't end with period)
-        if answer.endswith('.'):
-            answer = answer[:-1].strip()
-
-        return answer
-
 
     def run(self, question: str) -> Tuple[str, List[Dict[str, Any]]]:
         """

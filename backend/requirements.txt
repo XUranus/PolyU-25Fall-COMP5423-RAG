@@ -9,3 +9,9 @@ transformers==4.57.1
 nltk
 accelerate==1.12.0
 openai
+gensim
+numpy
+
+# Evaluation dependencies
+# pytrec_eval
+# pandas
