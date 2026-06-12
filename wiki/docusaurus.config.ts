@@ -17,6 +17,8 @@ const config: Config = {
   organizationName: 'XUranus',
   projectName: 'PolyU-25Fall-COMP5423-RAG',
 
+  trailingSlash: true,
+
   onBrokenLinks: 'warn',
   markdown: {
     hooks: {
