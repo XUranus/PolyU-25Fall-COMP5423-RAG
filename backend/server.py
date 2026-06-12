@@ -39,6 +39,7 @@ def setup_logger(name, log_file, level=logging.INFO):
 
 
 # Configuration
+RETRIEVER_TYPE = "hybrid"
 DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
 RAG42_STORAGE_DIR = os.getenv('RAG42_STORAGE_DIR', './storage')
 RAG42_CACHE_DIR=os.getenv('RAG42_CACHE_DIR', './cache')
@@ -78,14 +79,16 @@ def initialize_rag_modules():
             logger.info("import RAG modules...")
             now = time.time()
             from rag_pipeline import RAGPipeline
-            from hybrid_retriever import HybridRetriever
+            from retriever_base import BaseRetriever
             logger.info(f"RAG modules loaded. ({(time.time() - now):.2f} seconds)")
 
             logger.info("Initialize RAG modules...")
             now = time.time()
-            retriever = HybridRetriever(collection_path="izhx/COMP5423-25Fall-HQ-small")
+            retriever = BaseRetriever.create_retriever(
+                retriever_type=RETRIEVER_TYPE,
+                collection_path="izhx/COMP5423-25Fall-HQ-small")
             rag_pipeline = RAGPipeline(retriever=retriever)
-            #rag_pipeline.init_generator(model_name=DEFAULT_MODEL)
+            rag_pipeline.init_generator(model_name=DEFAULT_MODEL)
             RAG_Initialized = True
             logger.info(f"RAG modules initialized. ({(time.time() - now):.2f} seconds)")
         except Exception as e:
